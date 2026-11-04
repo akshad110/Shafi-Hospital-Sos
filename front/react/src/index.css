@@ -1,0 +1,18 @@
+/* Mobile Screen (default: Hide Desktop Sidebar, Show Bottom Nav) */
+@media (max-width: 768px) {
+  aside {
+    display: none !important; /* Mobile par sidebar hidden */
+  }
+}
+
+/* Desktop/Tablet Screen (Hide Bottom Nav, Show Sidebar) */
+@media (min-width: 769px) {
+  nav[style*="position: fixed"] {
+    display: none !important; /* Desktop par bottom nav hidden */
+  }
+  
+  /* App container layout adjustments */
+  div[style*="paddingBottom: 90px"] {
+    padding-bottom: 24px !important; /* Desktop par bottom nav space ki zarurat nahi hai */
+  }
+}
