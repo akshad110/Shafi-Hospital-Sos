@@ -1,0 +1,11 @@
+{
+  "name": "Shafi SOS Hospital Portal",
+  "short_name": "Shafi SOS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F6F9FC",
+  "theme_color": "#0B9685",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
