@@ -47,7 +47,7 @@ export function QuickMarks({ shiftId, attendance, reason }: { shiftId: string; a
             onClick={() => mark.mutate({ status: current === item.value ? 'pending' : item.value })}
             aria-pressed={current === item.value}
             className={cn(
-              'h-7 rounded-lg border px-2 text-[11px] font-semibold transition-colors disabled:opacity-60',
+              'h-7 min-w-0 rounded-lg border px-1.5 text-[10px] font-semibold transition-colors disabled:opacity-60 sm:px-2 sm:text-[11px]',
               current === item.value ? item.on : 'border-line-strong bg-white text-muted hover:border-ink hover:text-ink',
             )}
           >

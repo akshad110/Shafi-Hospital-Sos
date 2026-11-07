@@ -50,7 +50,7 @@ export default function ShiftsPage() {
       />
 
       <Card className="p-3 md:p-4">
-        <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+        <div className="no-scrollbar -mx-1 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1">
           {days.map((day) => {
             const on = date === day.value
             const count = source.filter((shift) => shift.date === day.value).length
@@ -78,10 +78,15 @@ export default function ShiftsPage() {
             onChange={pickTab}
             options={tabs.map((tab) => ({
               value: tab,
-              label: <span>{STATUS_LABEL[tab]} <span className="ml-1 opacity-70">{source.filter((shift) => shift.status === tab).length}</span></span>,
+              label: (
+                <span className="flex flex-col items-center gap-0 sm:inline">
+                  <span>{STATUS_LABEL[tab]}</span>
+                  <span className="font-medium opacity-70 sm:ml-1">{source.filter((shift) => shift.status === tab).length}</span>
+                </span>
+              ),
             }))}
           />
-          <Select value={department} onChange={(event) => setDepartment(event.target.value)} className="h-10 sm:w-56" aria-label="Department">
+          <Select value={department} onChange={(event) => setDepartment(event.target.value)} className="h-10 w-full sm:w-56" aria-label="Department">
             <option value="">All departments</option>
             {[...new Set([...hospital.departments, ...source.map((shift) => shift.department)])].map((item) => <option key={item}>{item}</option>)}
           </Select>
@@ -101,15 +106,15 @@ export default function ShiftsPage() {
                   <button
                     type="button"
                     onClick={() => setParams({ id: shift.id, tab: activeTab }, { replace: true })}
-                    className={cn('group flex w-full items-start gap-4 px-4 py-4 text-left md:px-5', active ? 'bg-mint/60 shadow-[inset_3px_0_0_#0B9685]' : rowClass)}
+                    className={cn('group flex w-full min-w-0 items-start gap-3 px-3 py-3.5 text-left sm:gap-4 sm:px-4 sm:py-4 md:px-5', active ? 'bg-mint/60 shadow-[inset_3px_0_0_#0B9685]' : rowClass)}
                   >
-                    <div className="w-14 shrink-0 rounded-xl border border-line bg-white py-1.5 text-center">
+                    <div className="w-11 shrink-0 rounded-xl border border-line bg-white py-1.5 text-center sm:w-14">
                       <span className="block text-[11px] font-semibold uppercase text-muted">{new Date(`${shift.date}T00:00:00`).toLocaleDateString('en-IN', { month: 'short' })}</span>
                       <span className="block text-lg font-semibold leading-tight text-ink">{new Date(`${shift.date}T00:00:00`).getDate()}</span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className={cn('font-semibold', active ? 'text-brand-deep' : 'text-ink group-hover:text-brand-deep')}>{shift.department}</p>
-                      <p className="text-sm text-muted">{shift.workerName} · {shift.workerRole}</p>
+                      <p className={cn('truncate font-semibold', active ? 'text-brand-deep' : 'text-ink group-hover:text-brand-deep')}>{shift.department}</p>
+                      <p className="truncate text-sm text-muted">{shift.workerName} · {shift.workerRole}</p>
                       <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
                         <span className="inline-flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" />{shift.startTime}–{shift.endTime}</span>
                         <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{shift.location}</span>

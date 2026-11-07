@@ -40,7 +40,7 @@ export default function AttendancePage() {
   const paidTotal = (history.data || []).reduce((sum, item) => sum + item.amount, 0)
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-4 sm:space-y-6">
       <PageHeader
         eyebrow="Attendance & payroll"
         title="Attendance register"
@@ -104,13 +104,13 @@ export default function AttendancePage() {
 
 function Stat({ icon: Icon, label, value, hint, tone }: { icon: typeof Wallet; label: string; value: string; hint: string; tone?: 'warn' | 'action' }) {
   return (
-    <div className="bg-white px-4 py-4">
-      <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
-        <Icon className={cn('h-3.5 w-3.5', tone === 'warn' ? 'text-warn' : tone === 'action' ? 'text-action' : 'text-faint')} />
-        {label}
+    <div className="min-w-0 bg-white px-3 py-3 sm:px-4 sm:py-4">
+      <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted sm:text-xs">
+        <Icon className={cn('h-3.5 w-3.5 shrink-0', tone === 'warn' ? 'text-warn' : tone === 'action' ? 'text-action' : 'text-faint')} />
+        <span className="truncate">{label}</span>
       </p>
-      <p className={cn('mt-1.5 text-[24px] font-semibold leading-none tracking-tight', tone === 'warn' ? 'text-[#8f5300]' : tone === 'action' ? 'text-action' : 'text-ink')}>{value}</p>
-      <p className="mt-1.5 truncate text-xs text-faint">{hint}</p>
+      <p className={cn('mt-1 text-lg font-semibold leading-none tracking-tight sm:mt-1.5 sm:text-[24px]', tone === 'warn' ? 'text-[#8f5300]' : tone === 'action' ? 'text-action' : 'text-ink')}>{value}</p>
+      <p className="mt-1 truncate text-[11px] text-faint sm:mt-1.5 sm:text-xs">{hint}</p>
     </div>
   )
 }

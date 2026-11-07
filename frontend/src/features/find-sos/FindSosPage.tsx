@@ -92,7 +92,7 @@ export default function FindSosPage() {
             <option value="rotating">Rotating</option>
           </Select>
         </div>
-        <div className="no-scrollbar mt-3 flex items-center gap-2 overflow-x-auto">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           {STATUS_FILTERS.map((item) => (
             <Chip key={item.value || 'all'} active={status === item.value} onClick={() => update('status', item.value)}>{item.label}</Chip>
           ))}
@@ -149,11 +149,11 @@ function JobRow({ job, active, onSelect }: { job: Job; active: boolean; onSelect
       type="button"
       onClick={onSelect}
       aria-current={active}
-      className={cn('group flex w-full items-start gap-4 px-4 py-4 text-left md:px-5', active ? 'bg-mint/60 shadow-[inset_3px_0_0_#0B9685]' : rowClass)}
+      className={cn('group flex w-full min-w-0 items-start gap-3 px-3 py-3.5 text-left sm:gap-4 sm:px-4 sm:py-4 md:px-5', active ? 'bg-mint/60 shadow-[inset_3px_0_0_#0B9685]' : rowClass)}
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className={cn('font-semibold', active ? 'text-brand-deep' : 'text-ink group-hover:text-brand-deep')}>{job.title}</h3>
+          <h3 className={cn('text-[15px] font-semibold sm:text-base', active ? 'text-brand-deep' : 'text-ink group-hover:text-brand-deep')}>{job.title}</h3>
           {job.urgent && <Badge status="urgent">Urgent</Badge>}
           <Badge status={job.status} />
         </div>
@@ -305,7 +305,7 @@ function QuickSos({ open, onClose }: { open: boolean; onClose: () => void }) {
           <p className="rounded-xl border border-sos/20 bg-sos-soft px-3 py-2.5 text-xs leading-5 text-[#9f2323]">
             This files an urgent request, not a confirmed booking. Workers are confirmed by the admin desk.
           </p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Role">
               <ChoiceSelect required value={form.role} onChange={(value) => set('role', value)} options={roles} otherLabel="Other role" otherPlaceholder="Type the role" />
             </Field>

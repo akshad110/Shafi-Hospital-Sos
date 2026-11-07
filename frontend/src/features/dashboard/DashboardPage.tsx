@@ -45,28 +45,28 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-3 flex flex-wrap gap-2">
+    <div className="min-w-0 space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap gap-1.5 sm:mb-3 sm:gap-2">
             <Badge status={hospital.verified ? 'approved' : 'pending_review'}>{hospital.verified ? 'Verified hospital' : 'Verification pending'}</Badge>
             {sub && <Badge status={sub.status === 'active' ? 'offered' : sub.status}>{PLAN_LABEL[sub.plan]} · {daysLeft(sub.renewalDate)} days left</Badge>}
           </div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-ink md:text-[32px]">{greeting(hospital.name)}</h1>
-          <p className="mt-1 text-sm text-muted">Manage your staffing requirements and monitor your active shifts.</p>
+          <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-[28px] md:text-[32px]">{greeting(hospital.name)}</h1>
+          <p className="mt-1 text-[13px] text-muted sm:text-sm">Manage your staffing requirements and monitor your active shifts.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/find?compose=1" className={buttonClass('sos')}><Siren className="h-4 w-4" /> Urgent SOS</Link>
-          <Link to="/requests/new" className={buttonClass('primary')}><Plus className="h-4 w-4" /> New request</Link>
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <Link to="/find?compose=1" className={buttonClass('sos', 'md', 'w-full sm:w-auto')}><Siren className="h-4 w-4" /> Urgent SOS</Link>
+          <Link to="/requests/new" className={buttonClass('primary', 'md', 'w-full sm:w-auto')}><Plus className="h-4 w-4" /> New request</Link>
         </div>
       </div>
 
       <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3 xl:grid-cols-6" aria-label="Overview">
         {stats.map((stat) => (
-          <Link key={stat.label} to={stat.to} className="group bg-white px-4 py-4 transition-colors hover:bg-[#fbfefd]">
-            <p className="text-xs font-medium text-muted group-hover:text-brand-deep">{stat.label}</p>
-            <p className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight text-ink">{stat.value}</p>
-            <p className="mt-1.5 text-xs text-faint">{stat.hint}</p>
+          <Link key={stat.label} to={stat.to} className="group min-w-0 bg-white px-3 py-3 transition-colors hover:bg-[#fbfefd] sm:px-4 sm:py-4">
+            <p className="truncate text-[11px] font-medium text-muted group-hover:text-brand-deep sm:text-xs">{stat.label}</p>
+            <p className="mt-1 text-xl font-semibold leading-none tracking-tight text-ink sm:mt-1.5 sm:text-[26px]">{stat.value}</p>
+            <p className="mt-1 truncate text-[11px] text-faint sm:mt-1.5 sm:text-xs">{stat.hint}</p>
           </Link>
         ))}
       </section>
@@ -90,8 +90,8 @@ export default function DashboardPage() {
               <div className="mt-4 flex gap-3">
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-mint text-brand"><MapPin className="h-5 w-5" /></span>
                 <div className="min-w-0">
-                  <h2 className="text-[17px] font-semibold text-ink">{featured.department}</h2>
-                  <p className="text-sm text-muted">{featured.location}</p>
+                  <h2 className="truncate text-base font-semibold text-ink sm:text-[17px]">{featured.department}</h2>
+                  <p className="truncate text-xs text-muted sm:text-sm">{featured.location}</p>
                 </div>
               </div>
 
@@ -129,7 +129,7 @@ export default function DashboardPage() {
               <ul className="divide-y divide-line">
                 {jobItems.filter((job) => job.status !== 'cancelled').slice(0, 5).map((job) => (
                   <li key={job.id}>
-                    <Link to={`/find?id=${job.id}`} className={cn('group flex items-start gap-4 px-4 py-3.5 md:px-5', rowClass)}>
+                    <Link to={`/find?id=${job.id}`} className={cn('group flex items-start gap-3 px-3 py-3 sm:gap-4 sm:px-4 sm:py-3.5 md:px-5', rowClass)}>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-semibold text-ink group-hover:text-brand-deep">{job.title}</p>
@@ -167,7 +167,7 @@ export default function DashboardPage() {
 
           <Card className="p-4 md:p-5">
             <p className="text-sm font-semibold text-ink">Applications this week</p>
-            <div className="mt-2 h-32">
+            <div className="mt-2 h-32 min-w-0 overflow-hidden">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={lastDays(appItems.map((item) => item.appliedAt))}>
                   <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#55657A' }} />

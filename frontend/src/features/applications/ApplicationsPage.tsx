@@ -57,7 +57,7 @@ export default function ApplicationsPage() {
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
             <TextInput value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} placeholder="Search worker or request" className="pl-10" aria-label="Search applications" />
           </div>
-          <div className="no-scrollbar flex gap-2 overflow-x-auto">
+          <div className="flex min-w-0 flex-wrap gap-2">
             {filters.map((item) => (
               <Chip key={item || 'all'} active={status === item} onClick={() => { update('status', item); setPage(1) }}>
                 {item ? STATUS_LABEL[item] : 'All'}

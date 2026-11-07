@@ -36,10 +36,10 @@ export function SignupPage() {
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
       <BrandPanel />
-      <main className="flex items-center justify-center bg-canvas px-5 py-10">
+      <main className="flex min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:px-5 sm:py-10">
         <div className="w-full max-w-[460px]">
-          <h1 className="text-[28px] font-semibold tracking-tight text-ink">Register your hospital</h1>
-          <p className="mt-1.5 text-sm text-muted">You start on a 7-day free trial. The organisation is verified by the admin desk.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">Register your hospital</h1>
+          <p className="mt-1.5 text-[13px] text-muted sm:text-sm">You start on a 7-day free trial. The organisation is verified by the admin desk.</p>
 
           <form onSubmit={onSubmit} className="mt-8 grid gap-4">
             {error && <p role="alert" className="rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-2.5 text-sm font-medium text-[#b42323]">{error}</p>}

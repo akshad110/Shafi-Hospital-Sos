@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils'
 const OTHER = '__other__'
 
 export const controlClass =
-  'h-11 w-full rounded-xl border border-line-strong bg-white px-3.5 text-sm text-ink outline-none transition-colors duration-150 placeholder:text-faint hover:border-[#aebccc] focus:border-brand focus:ring-4 focus:ring-brand/10'
+  'h-10 w-full max-w-full rounded-xl border border-line-strong bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 placeholder:text-faint hover:border-[#aebccc] focus:border-brand focus:ring-4 focus:ring-brand/10 sm:h-11 sm:px-3.5'
 
 export function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: React.ReactNode }) {
   return (

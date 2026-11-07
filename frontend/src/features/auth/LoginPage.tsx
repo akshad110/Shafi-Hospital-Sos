@@ -37,14 +37,14 @@ export function LoginPage() {
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
       <BrandPanel />
-      <main className="flex items-center justify-center bg-canvas px-5 py-10">
+      <main className="flex min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:px-5 sm:py-10">
         <div className="w-full max-w-[420px]">
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand text-lg font-bold text-white">S</span>
-            <span className="text-[15px] font-semibold text-ink">Shafi SOS · Hospital Portal</span>
+          <div className="mb-6 flex items-center gap-3 lg:hidden">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-base font-bold text-white">S</span>
+            <span className="text-sm font-semibold text-ink">Shafi SOS · Hospital Portal</span>
           </div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-ink">Welcome back</h1>
-          <p className="mt-1.5 text-sm text-muted">Sign in to manage staffing requests, applications and shifts.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">Welcome back</h1>
+          <p className="mt-1.5 text-[13px] text-muted sm:text-sm">Sign in to manage staffing requests, applications and shifts.</p>
 
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
             {error && <p role="alert" className="rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-2.5 text-sm font-medium text-[#b42323]">{error}</p>}

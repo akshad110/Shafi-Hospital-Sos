@@ -73,15 +73,15 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <Card className="overflow-hidden">
-        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
-          <div className="flex min-w-0 items-center gap-4">
-            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-mint text-lg font-semibold text-brand-deep ring-1 ring-inset ring-brand/20 md:h-16 md:w-16 md:text-xl">{initials(hospital.name)}</span>
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-5 md:p-6">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-mint text-base font-semibold text-brand-deep ring-1 ring-inset ring-brand/20 sm:h-14 sm:w-14 sm:text-lg md:h-16 md:w-16 md:text-xl">{initials(hospital.name)}</span>
             <div className="min-w-0">
-              <h1 className="flex items-center gap-1.5 text-xl font-semibold tracking-tight text-ink">
+              <h1 className="flex items-center gap-1.5 text-lg font-semibold tracking-tight text-ink sm:text-xl">
                 <span className="truncate">{hospital.name}</span>
                 {hospital.verified && <BadgeCheck className="h-5 w-5 shrink-0 text-action" aria-label="Verified" />}
               </h1>
-              <p className="truncate text-sm text-muted">{hospital.email}</p>
+              <p className="truncate text-xs text-muted sm:text-sm">{hospital.email}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -111,7 +111,7 @@ export default function ProfilePage() {
       <Card>
         <CardHeader title="Organisation details" description="Shown to the admin desk and on worker shift briefs." />
         <form onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
-          <div className="grid gap-4 p-5 sm:grid-cols-2 md:p-6">
+          <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5 md:p-6">
             <Field label="Hospital name"><TextInput required value={form.name} onChange={(event) => set('name', event.target.value)} /></Field>
             <Field label="Phone"><TextInput required value={form.phone} onChange={(event) => set('phone', event.target.value)} /></Field>
             <Field label="Authorised representative"><TextInput value={form.representative} onChange={(event) => set('representative', event.target.value)} /></Field>
@@ -121,7 +121,7 @@ export default function ProfilePage() {
             <div className="sm:col-span-2"><Field label="Address"><TextInput required value={form.address} onChange={(event) => set('address', event.target.value)} /></Field></div>
           </div>
 
-          <div id="alerts" className="scroll-mt-24 border-t border-line px-5 py-5 md:px-6">
+          <div id="alerts" className="scroll-mt-24 border-t border-line px-4 py-4 sm:px-5 sm:py-5 md:px-6">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-ink"><Bell className="h-4 w-4 text-muted" /> Notification preferences</h3>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {(Object.keys(PREF_LABEL) as PrefKey[]).map((key) => (
@@ -152,7 +152,7 @@ export default function ProfilePage() {
       <Card>
         <CardHeader title={<span className="flex items-center gap-2"><Shield className="h-4 w-4 text-muted" /> Security</span>} description="Changing the password signs you out on every device." />
         <form onSubmit={(event) => { event.preventDefault(); pass.mutate() }}>
-          <div className="grid gap-4 p-5 sm:grid-cols-2 md:p-6">
+          <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5 md:p-6">
             <Field label="Current password"><TextInput type="password" required autoComplete="current-password" value={password.current} onChange={(event) => setPassword({ ...password, current: event.target.value })} /></Field>
             <Field label="New password" hint="At least 8 characters"><TextInput type="password" required minLength={8} autoComplete="new-password" value={password.next} onChange={(event) => setPassword({ ...password, next: event.target.value })} /></Field>
           </div>
@@ -174,7 +174,7 @@ export default function ProfilePage() {
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border-line px-5 py-3 odd:border-r lg:border-r lg:last:border-r-0 md:px-6 [&:nth-child(-n+2)]:border-b lg:[&:nth-child(-n+2)]:border-b-0">
+    <div className="min-w-0 border-line px-3 py-2.5 odd:border-r sm:px-5 sm:py-3 lg:border-r lg:last:border-r-0 md:px-6 [&:nth-child(-n+2)]:border-b lg:[&:nth-child(-n+2)]:border-b-0">
       <dt className="text-xs font-medium text-muted">{label}</dt>
       <dd className="mt-0.5 truncate font-semibold text-ink">{value}</dd>
     </div>

@@ -27,7 +27,7 @@ export default function HelpPage() {
     <div className="space-y-6">
       <PageHeader eyebrow="Help & support" title="How can we help?" description="Questions about a request, placement or invoice go to the Shafi operations desk." />
 
-      <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
         <div className="space-y-6">
           <Card className="divide-y divide-line">
             <Contact icon={Mail} label="Email" value={contact.email || '—'} href={contact.email ? `mailto:${contact.email}` : undefined} />

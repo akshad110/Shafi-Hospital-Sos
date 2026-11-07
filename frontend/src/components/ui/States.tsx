@@ -7,7 +7,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
 
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center px-6 py-12 text-center">
+    <div className="flex flex-col items-center px-4 py-8 text-center sm:px-6 sm:py-12">
       <span className="grid h-11 w-11 place-items-center rounded-full bg-canvas text-muted ring-1 ring-line">
         <Inbox className="h-5 w-5" />
       </span>

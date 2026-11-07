@@ -18,9 +18,12 @@ export function createApp() {
   app.use(express.json({ limit: '1mb' }))
   app.use(cookieParser())
 
-  app.get('/api/v1/health', (_req, res) => {
+  const health = (_req: express.Request, res: express.Response) => {
     res.json({ ok: true, service: 'hospital-sos', database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' })
-  })
+  }
+  app.get('/', health)
+  app.get('/health', health)
+  app.get('/api/v1/health', health)
 
   app.use('/api/v1', authRouter)
   app.use('/api/v1', requireAuth, hospitalRouter, payrollRouter, notificationsRouter)

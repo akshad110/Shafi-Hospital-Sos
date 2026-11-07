@@ -66,14 +66,14 @@ export default function NotificationsPage() {
         title="Desk updates"
         description="Applications, reviews, shifts, payroll and billing, delivered the moment they happen."
         actions={
-          <div className="flex flex-wrap gap-2">
+          <>
             <Button variant="outline" size="sm" disabled={!scopeUnread || readAll.isPending} onClick={() => readAll.mutate()}>
               <MailOpen className="h-4 w-4" /> Mark all read
             </Button>
             <Button variant="ghost" size="sm" disabled={!readCount || clear.isPending} onClick={() => clear.mutate()}>
               <Trash2 className="h-4 w-4" /> Clear read
             </Button>
-          </div>
+          </>
         }
       />
 
@@ -86,7 +86,7 @@ export default function NotificationsPage() {
             { value: 'unread', label: `Unread (${scopeUnread})` },
           ]}
         />
-        <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+        <div className="flex min-w-0 flex-wrap gap-2 pb-1">
           <Chip active={!category} onClick={() => setCategory('')}>Everything</Chip>
           {(Object.keys(CATEGORY) as NoticeCategory[]).filter((key) => notes.categories[key].total > 0 || key === category).map((key) => (
             <Chip key={key} active={category === key} onClick={() => setCategory(key)}>

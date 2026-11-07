@@ -6,7 +6,7 @@ const items = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/find', label: 'Requests', icon: ClipboardList, end: false },
   { to: '/applications', label: 'Applications', icon: FileText, end: false },
-  { to: '/shifts', label: 'Manage Shifts', icon: CalendarClock, end: false },
+  { to: '/shifts', label: 'Shifts', icon: CalendarClock, end: false },
   { to: '/profile', label: 'Profile', icon: UserRound, end: false },
 ]
 
@@ -20,7 +20,7 @@ export function BottomNav() {
             key={item.to}
             to={item.to}
             end={item.end}
-            className={({ isActive }) => cn('relative flex h-16 flex-col items-center justify-center gap-1 px-1 text-center text-[10px] font-semibold leading-tight transition-colors', isActive ? 'text-brand-deep' : 'text-faint active:text-ink')}
+            className={({ isActive }) => cn('relative flex h-14 flex-col items-center justify-center gap-0.5 px-0.5 text-center text-[10px] font-semibold leading-tight transition-colors', isActive ? 'text-brand-deep' : 'text-faint active:text-ink')}
           >
             {({ isActive }) => (
               <>

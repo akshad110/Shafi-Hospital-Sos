@@ -77,28 +77,31 @@ export default function CreateRequestPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader eyebrow="Staffing request" title="Create a request" description="Five short steps. Nothing is published until admin review approves it." />
 
-      <ol className="grid grid-cols-5 gap-2">
-        {steps.map((item, index) => (
-          <li key={item.title}>
-            <button
-              type="button"
-              disabled={index > step}
-              onClick={() => setStep(index)}
-              className="group w-full text-left disabled:cursor-default"
-            >
-              <span className={cn('block h-1.5 rounded-full transition-colors', index < step ? 'bg-brand' : index === step ? 'bg-navy' : 'bg-line')} />
-              <span className={cn('mt-2 flex items-center gap-1.5 text-xs font-semibold', index === step ? 'text-ink' : index < step ? 'text-brand-deep group-hover:text-brand' : 'text-faint')}>
-                {index < step ? <Check className="h-3.5 w-3.5" /> : <span className="hidden sm:inline">{index + 1}.</span>}
-                <span className="truncate">{item.title}</span>
-              </span>
-            </button>
-          </li>
-        ))}
-      </ol>
+      <div>
+        <ol className="grid grid-cols-5 gap-1 sm:gap-2">
+          {steps.map((item, index) => (
+            <li key={item.title}>
+              <button
+                type="button"
+                disabled={index > step}
+                onClick={() => setStep(index)}
+                className="group w-full text-left disabled:cursor-default"
+              >
+                <span className={cn('block h-1.5 rounded-full transition-colors', index < step ? 'bg-brand' : index === step ? 'bg-navy' : 'bg-line')} />
+                <span className={cn('mt-2 hidden items-center gap-1.5 text-xs font-semibold sm:flex', index === step ? 'text-ink' : index < step ? 'text-brand-deep group-hover:text-brand' : 'text-faint')}>
+                  {index < step ? <Check className="h-3.5 w-3.5" /> : <span>{index + 1}.</span>}
+                  <span className="truncate">{item.title}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-2 text-[13px] font-semibold text-ink sm:hidden">Step {step + 1} of {steps.length} · {steps[step].title}</p>
+      </div>
 
       <Card>
         <form onSubmit={form.handleSubmit(() => save.mutate('pending_review'))}>
-          <div className="p-5 md:p-6">
+          <div className="p-4 md:p-6">
             <h2 className="text-[17px] font-semibold text-ink">{['Basic information', 'Requirements', 'Shift information', 'Compensation', 'Review and submit'][step]}</h2>
             <div className="mt-5">
               {step === 0 && (
@@ -170,11 +173,11 @@ export default function CreateRequestPage() {
             {save.isError && <p className="mt-4 text-sm font-medium text-danger">{errorMessage(save.error)}</p>}
           </div>
 
-          <div className="flex flex-col-reverse gap-2 border-t border-line bg-canvas/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6">
-            <Button variant="outline" onClick={() => (step === 0 ? navigate('/find') : setStep((value) => value - 1))}>
+          <div className="flex flex-col-reverse gap-2 border-t border-line bg-canvas/60 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4 md:px-6">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => (step === 0 ? navigate('/find') : setStep((value) => value - 1))}>
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row [&>*]:w-full sm:[&>*]:w-auto">
               <Button variant="outline" disabled={save.isPending} onClick={saveDraft}>Save draft</Button>
               {step < steps.length - 1 ? (
                 <Button onClick={next}>Continue</Button>

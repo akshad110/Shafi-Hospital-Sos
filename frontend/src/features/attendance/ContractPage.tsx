@@ -30,19 +30,19 @@ export default function ContractPage() {
         <ArrowLeft className="h-4 w-4" /> Attendance & payroll
       </Link>
 
-      <Card className="p-5 md:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="flex min-w-0 items-center gap-4">
-            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-mint text-base font-bold text-brand-deep">{initials(item.workerName)}</span>
+      <Card className="p-4 md:p-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-mint text-sm font-bold text-brand-deep sm:h-14 sm:w-14 sm:text-base">{initials(item.workerName)}</span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="flex items-center gap-1 text-xl font-semibold tracking-tight text-ink">{item.workerName}{item.workerVerified && <BadgeCheck className="h-5 w-5 text-action" />}</h1>
+                <h1 className="flex min-w-0 items-center gap-1 text-lg font-semibold tracking-tight text-ink sm:text-xl"><span className="truncate">{item.workerName}</span>{item.workerVerified && <BadgeCheck className="h-5 w-5 shrink-0 text-action" />}</h1>
                 <Badge status={contractBadge(item)} />
               </div>
-              <p className="mt-0.5 text-sm text-muted">{item.title}</p>
+              <p className="mt-0.5 truncate text-xs text-muted sm:text-sm">{item.title}</p>
             </div>
           </div>
-          {item.canPay && <Button variant="navy" onClick={() => setPaying(true)}><Wallet className="h-4 w-4" /> Pay {money(item.summary.gross)}</Button>}
+          {item.canPay && <Button variant="navy" className="w-full md:w-auto" onClick={() => setPaying(true)}><Wallet className="h-4 w-4" /> Pay {money(item.summary.gross)}</Button>}
         </div>
         <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-line pt-5 text-sm md:grid-cols-4">
           <Fact label="Bond period" value={`${dateOnly(item.startDate)} – ${dateOnly(item.endDate)}`} />

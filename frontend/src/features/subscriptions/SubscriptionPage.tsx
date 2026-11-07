@@ -84,7 +84,7 @@ export default function SubscriptionPage() {
               <article
                 key={plan.code}
                 className={cn(
-                  'relative flex flex-col rounded-2xl border bg-white p-5 transition-all duration-150 md:p-6',
+                  'relative flex min-w-0 flex-col rounded-2xl border bg-white p-4 transition-all duration-150 md:p-6',
                   active ? 'border-brand ring-1 ring-brand' : 'border-line hover:-translate-y-0.5 hover:border-brand/60 hover:shadow-[0_12px_32px_-16px_rgba(20,36,58,0.25)]',
                 )}
               >
@@ -94,7 +94,7 @@ export default function SubscriptionPage() {
                 </div>
                 <p className="mt-3 inline-flex w-fit items-center rounded-md bg-canvas px-2 py-0.5 text-xs font-semibold text-navy ring-1 ring-inset ring-line">{period}</p>
                 <p className="mt-3 flex items-baseline gap-1.5">
-                  <span className="text-[32px] font-semibold leading-none tracking-tight text-ink">{money(plan.price)}</span>
+                  <span className="text-[26px] font-semibold leading-none tracking-tight text-ink sm:text-[32px]">{money(plan.price)}</span>
                   <span className="text-sm text-muted">/ {period}</span>
                 </p>
                 <p className="mt-1.5 text-sm text-muted">
@@ -182,7 +182,7 @@ function CurrentPlan({ label, status, cycleLabel, amount, startedAt, renewalDate
   return (
     <Card className="overflow-hidden">
       <div className="grid lg:grid-cols-[1.5fr_1fr]">
-        <div className="p-5 md:p-6">
+        <div className="min-w-0 p-4 md:p-6">
           <div className="flex flex-wrap items-center gap-2">
             <Badge status={status === 'active' ? 'approved' : status}>{statusLabel}</Badge>
             <span className="text-xs font-medium text-muted">{cycleLabel}</span>
@@ -196,7 +196,7 @@ function CurrentPlan({ label, status, cycleLabel, amount, startedAt, renewalDate
                 : `${money(amount)} for ${cycleLabel}.`}
           </p>
 
-          <dl className="mt-5 grid grid-cols-3 gap-4 text-sm">
+          <dl className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 sm:gap-4">
             <div>
               <dt className="text-xs font-medium text-muted">Started</dt>
               <dd className="mt-0.5 font-semibold text-ink">{dateOnly(startedAt)}</dd>

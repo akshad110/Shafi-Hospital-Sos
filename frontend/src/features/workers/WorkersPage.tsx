@@ -116,7 +116,7 @@ function WorkerDetail({ id }: { id: string }) {
       </dl>
 
       <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Attendance here</h3>
-      <div className="mt-2 grid grid-cols-4 gap-1.5 text-center">
+      <div className="mt-2 grid grid-cols-2 gap-1.5 text-center sm:grid-cols-4">
         {[
           { label: 'Present', value: person.attendance.present, tone: 'text-[#05603a]' },
           { label: 'Late', value: person.attendance.late, tone: 'text-[#8f5300]' },

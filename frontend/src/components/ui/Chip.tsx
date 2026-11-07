@@ -9,7 +9,7 @@ export function Chip({ active, tone = 'brand', className, ...props }: React.Butt
     <button
       type="button"
       aria-pressed={active}
-      className={cn('h-8 shrink-0 rounded-full border px-3.5 text-xs font-semibold transition-colors duration-150', active ? on : off, className)}
+      className={cn('h-7 shrink-0 rounded-full border px-2.5 text-[11px] font-semibold transition-colors duration-150 sm:h-8 sm:px-3.5 sm:text-xs', active ? on : off, className)}
       {...props}
     />
   )
@@ -17,14 +17,21 @@ export function Chip({ active, tone = 'brand', className, ...props }: React.Butt
 
 export function Segmented<T extends string | number>({ value, options, onChange, className }: { value: T; options: { value: T; label: React.ReactNode }[]; onChange: (value: T) => void; className?: string }) {
   return (
-    <div className={cn('no-scrollbar inline-flex max-w-full overflow-x-auto rounded-xl border border-line bg-white p-1', className)}>
+    <div
+      className={cn(
+        'grid w-full min-w-0 gap-0.5 rounded-xl border border-line bg-white p-1',
+        options.length > 3 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-none',
+        'sm:inline-flex sm:w-auto sm:grid-cols-none sm:flex-nowrap',
+        className,
+      )}
+    >
       {options.map((option) => (
         <button
           key={String(option.value)}
           type="button"
           onClick={() => onChange(option.value)}
           className={cn(
-            'h-9 shrink-0 rounded-lg px-3.5 text-[13px] font-semibold transition-colors duration-150',
+            'flex min-h-9 min-w-0 items-center justify-center overflow-hidden rounded-lg px-1.5 py-1.5 text-center text-[11px] font-semibold leading-tight transition-colors duration-150 sm:h-9 sm:min-h-0 sm:flex-none sm:px-3.5 sm:py-0 sm:text-[13px] sm:whitespace-nowrap',
             option.value === value ? 'bg-brand text-white shadow-sm' : 'text-muted hover:bg-canvas hover:text-ink',
           )}
         >
