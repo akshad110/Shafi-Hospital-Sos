@@ -20,7 +20,11 @@ export function AppShell() {
   })
   const payroll = useQuery({ queryKey: ['contracts'], queryFn: () => contracts() })
   const offline = typeof navigator !== 'undefined' && !navigator.onLine
-  const counts = { review: review.data?.total || 0, payroll: payroll.data?.counts.readyToPay || 0 }
+  const counts = {
+    review: review.data?.total || 0,
+    payroll: payroll.data?.counts.readyToPay || 0,
+    mark: (payroll.data?.items || []).filter((item) => item.status !== 'paid' && item.summary.toMark > 0).length,
+  }
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-canvas text-ink">
@@ -46,7 +50,7 @@ export function AppShell() {
         <Topbar hospital={hospital} unread={notes.data?.unread || 0} onMenu={() => setDrawer(true)} />
         {offline && (
           <div className="flex items-center gap-2 bg-warn-soft px-3 py-2 text-[11px] font-semibold leading-4 text-[#8a5a00] md:px-4 md:text-xs">
-            <WifiOff className="h-3.5 w-3.5 shrink-0" /> You are offline. Saved screens may open, but live staffing data will not refresh.
+            <WifiOff className="h-3.5 w-3.5 shrink-0" /> You are offline. Data will refresh when you are back.
           </div>
         )}
         <main className="mx-auto w-full min-w-0 max-w-[1240px] px-3 pb-24 pt-4 sm:px-4 md:px-8 md:pb-12 md:pt-6 xl:px-10">
@@ -57,7 +61,7 @@ export function AppShell() {
           </AnimatePresence>
         </main>
       </div>
-      <BottomNav />
+      <BottomNav payroll={counts.payroll} mark={counts.mark} />
     </div>
   )
 }

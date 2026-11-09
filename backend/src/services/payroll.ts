@@ -1,8 +1,9 @@
 import { Contracts, HIDE, Payouts, Shifts, Workers } from '../models.js'
 import { changed } from '../realtime.js'
+import { payForStatus, presentDayPay, resolvePayRules, statusAllowed } from '../lib/payRules.js'
 import { httpError, nowIso, shiftHours, shiftWindow, uid, ymd } from '../lib/util.js'
 import { notify } from './notifications.js'
-import type { AttendanceStatus, Contract, ContractStatus, Payout, PayoutMethod, PayrollBreakdown, Shift, Worker } from '../types.js'
+import type { AttendanceStatus, Contract, ContractStatus, PayRules, Payout, PayoutMethod, PayrollBreakdown, Shift, Worker } from '../types.js'
 
 const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
   pending: 'Not marked',
@@ -25,37 +26,67 @@ export function contractStatus(contract: Pick<Contract, 'status' | 'endDate'>, t
   return contract.status
 }
 
-export function summarize(contract: Contract, shifts: Shift[]): PayrollBreakdown & { toMark: number } {
+export function rulesFor(contract: Pick<Contract, 'rate' | 'paymentUnit' | 'hoursPerShift' | 'payRules'>): PayRules {
+  return resolvePayRules(contract.payRules, presentDayPay(contract.rate, contract.paymentUnit, contract.hoursPerShift))
+}
+
+export function summarize(contract: Contract, shifts: Shift[]): PayrollBreakdown & { toMark: number; payRules: PayRules } {
   const today = ymd()
-  const result = { shifts: 0, present: 0, late: 0, halfDay: 0, absent: 0, pending: 0, hours: 0, units: 0, toMark: 0 }
+  const rules = rulesFor(contract)
+  const result = {
+    shifts: 0,
+    present: 0,
+    late: 0,
+    halfDay: 0,
+    absent: 0,
+    pending: 0,
+    hours: 0,
+    units: 0,
+    toMark: 0,
+    earnedPresent: 0,
+    earnedLate: 0,
+    earnedHalf: 0,
+    earnedAbsent: 0,
+    gross: 0,
+    maxGross: 0,
+  }
   for (const shift of shifts) {
     if (shift.status === 'cancelled') continue
     result.shifts += 1
+    result.maxGross += rules.presentPay
     const full = shiftHours(shift.startTime, shift.endTime) || contract.hoursPerShift
     const status = shift.attendance?.status || 'pending'
+    const earned = payForStatus(status, rules)
+    result.gross += earned
     if (status === 'pending') {
       result.pending += 1
       if (shift.date <= today) result.toMark += 1
       continue
     }
+    const hours = shift.attendance.hours ?? (status === 'half_day' ? full / 2 : status === 'absent' ? 0 : full)
+    result.hours += hours
     if (status === 'absent') {
       result.absent += 1
-      continue
-    }
-    const hours = shift.attendance.hours ?? (status === 'half_day' ? full / 2 : full)
-    result.hours += hours
-    if (status === 'half_day') {
+      result.earnedAbsent += earned
+    } else if (status === 'half_day') {
       result.halfDay += 1
-      result.units += contract.paymentUnit === 'hourly' ? hours : 0.5
+      result.earnedHalf += earned
+      result.units += 0.5
+    } else if (status === 'late') {
+      result.late += 1
+      result.earnedLate += earned
+      result.units += 1
     } else {
-      if (status === 'late') result.late += 1
-      else result.present += 1
-      result.units += contract.paymentUnit === 'hourly' ? hours : 1
+      result.present += 1
+      result.earnedPresent += earned
+      result.units += 1
     }
   }
   result.hours = Math.round(result.hours * 100) / 100
   result.units = Math.round(result.units * 100) / 100
-  return { ...result, rate: contract.rate, paymentUnit: contract.paymentUnit, gross: Math.round(result.units * contract.rate) }
+  result.gross = Math.round(result.gross)
+  result.maxGross = Math.round(result.maxGross)
+  return { ...result, rate: rules.presentPay, paymentUnit: contract.paymentUnit, payRules: rules }
 }
 
 function contractView(contract: Contract, shifts: Shift[], worker?: Worker | null) {
@@ -106,11 +137,17 @@ export async function getContract(hospitalId: string, id: string) {
     Workers.findOne({ hospitalId, id: contract.workerId }, HIDE).lean<Worker>(),
     contract.payoutId ? Payouts.findOne({ hospitalId, id: contract.payoutId }, HIDE).lean<Payout>() : null,
   ])
+  const rules = rulesFor(contract)
   return {
     ...contractView(contract, shifts, worker),
     worker,
     payout,
-    shifts: shifts.map((shift) => ({ ...shift, status: liveShiftStatus(shift) })),
+    payRules: rules,
+    shifts: shifts.map((shift) => ({
+      ...shift,
+      status: liveShiftStatus(shift),
+      earned: payForStatus(shift.attendance?.status || 'pending', rules),
+    })),
   }
 }
 
@@ -182,6 +219,9 @@ export async function markAttendance(hospitalId: string, shiftId: string, input:
   if (shift.status === 'cancelled') throw httpError(409, 'This shift was cancelled')
   if (shift.date > ymd()) throw httpError(409, 'Attendance can be marked from the day of the shift onwards')
   const contract = await lockedContract(hospitalId, shift.contractId)
+  if (contract && !statusAllowed(input.status, rulesFor(contract))) {
+    throw httpError(409, `This role does not allow marking ${input.status === 'half_day' ? 'half day' : input.status}`)
+  }
   const pendingBefore = await pendingFor(hospitalId, contract)
   await applyAttendance(shift, input)
   changed(hospitalId, 'shifts', 'contracts', 'workers')
@@ -192,6 +232,9 @@ export async function markAttendance(hospitalId: string, shiftId: string, input:
 export async function markRemaining(hospitalId: string, contractId: string, status: Exclude<AttendanceStatus, 'pending'>) {
   const contract = await lockedContract(hospitalId, contractId)
   if (!contract) return null
+  if (!statusAllowed(status, rulesFor(contract))) {
+    throw httpError(409, `This role does not allow marking ${status === 'half_day' ? 'half day' : status}`)
+  }
   const shifts = await Shifts.find({ hospitalId, contractId, status: { $ne: 'cancelled' }, 'attendance.status': 'pending', date: { $lte: ymd() } }, HIDE).lean<Shift[]>()
   const pendingBefore = await pendingFor(hospitalId, contract)
   for (const shift of shifts) await applyAttendance(shift, { status })

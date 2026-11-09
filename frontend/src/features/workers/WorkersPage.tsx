@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BadgeCheck, Search } from 'lucide-react'
+import { BadgeCheck } from 'lucide-react'
 import { worker, workers } from '../../services/api'
 import { Link } from 'react-router-dom'
 import { cn, contractBadge, dateOnly, daysLeft, errorMessage, initials, money } from '../../lib/utils'
@@ -8,7 +8,7 @@ import { useDebounced } from '../../hooks/useDebounced'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { Badge } from '../../components/ui/Badge'
 import { Card, interactiveCard } from '../../components/ui/Card'
-import { TextInput } from '../../components/ui/Field'
+import { SearchInput } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/States'
@@ -25,12 +25,11 @@ export default function WorkersPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Workers"
-        title="Worker directory"
-        description="People who have applied to or worked at this hospital. Credential documents stay with admin review."
+        title="Your workers"
+        description="People who have applied or worked here."
         actions={
-          <div className="relative w-full sm:w-72">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-            <TextInput value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search name, role or skill" className="pl-10" aria-label="Search workers" />
+          <div className="w-full sm:w-72">
+            <SearchInput value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by name, role or skill" aria-label="Search workers" />
           </div>
         }
       />

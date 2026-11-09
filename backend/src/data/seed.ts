@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { TRIAL, trialWindow } from '../billing.js'
 import { CATALOG_SEED } from '../catalog.js'
+import { presentDayPay, resolvePayRules } from '../lib/payRules.js'
 import { shiftHours, ymd } from '../lib/util.js'
 import { liveShiftStatus, summarize } from '../services/payroll.js'
 import type {
@@ -103,6 +104,14 @@ function contractShifts({ contract, supervisor, marks, startTime, endTime }: Shi
   })
 }
 
+function jobWithPay(job: Job): Job {
+  return { ...job, payRules: resolvePayRules(undefined, presentDayPay(job.amount, job.paymentUnit, job.paymentUnit === 'hourly' ? 8 : 12)) }
+}
+
+function contractWithPay(contract: Contract): Contract {
+  return { ...contract, payRules: resolvePayRules(undefined, presentDayPay(contract.rate, contract.paymentUnit, contract.hoursPerShift)) }
+}
+
 export function createSeed() {
   const trial = trialWindow()
   const soon = new Date(Date.now() + 50 * 60 * 1000)
@@ -150,10 +159,10 @@ export function createSeed() {
   ]
 
   const jobs: Job[] = [
-    { id: 'j-icu', hospitalId: HOSPITAL, title: 'ICU Registered Nurse', department: 'Critical Care', role: 'ICU Nurse', description: 'Cover a 12-hour ICU vacancy on floor 3. Ventilator competency is required.', qualifications: ['B.Sc Nursing'], experience: '3+ years', skills: ['Ventilator care', 'ACLS'], certifications: ['RN license', 'ACLS'], workersNeeded: 2, date: ymd(soon), startTime: '07:00', endTime: '19:00', shiftType: 'day', location: 'ICU Ward · Floor 3 · Bay 304-312', amount: 950, currency: 'INR', paymentUnit: 'shift', notes: 'Report to the charge desk 15 minutes early.', status: 'approved', urgent: true, createdAt: at(-4, 9).toISOString(), updatedAt: at(-4, 11).toISOString() },
-    { id: 'j-er', hospitalId: HOSPITAL, title: 'Emergency Room Nurse (Night)', department: 'Emergency', role: 'ER Nurse', description: 'Night coverage for the emergency bay. Trauma experience preferred.', qualifications: ['GNM or B.Sc Nursing'], experience: '2+ years', skills: ['Triage'], certifications: ['BLS'], workersNeeded: 1, date: day(1), startTime: '19:00', endTime: '07:00', shiftType: 'night', location: 'Emergency · Ground floor', amount: 1100, currency: 'INR', paymentUnit: 'shift', notes: 'Night differential included in the listed amount.', status: 'approved', urgent: true, createdAt: at(-1, 16).toISOString(), updatedAt: at(-1, 18).toISOString() },
-    { id: 'j-lab', hospitalId: HOSPITAL, title: 'Lab Technician — Hematology', department: 'Laboratory', role: 'Lab Technician', description: 'Same-day hematology bench support while a staff member is on leave.', qualifications: ['DMLT'], experience: '1+ years', skills: ['Hematology'], certifications: ['State lab registration'], workersNeeded: 1, date: day(2), startTime: '08:00', endTime: '16:00', shiftType: 'day', location: 'Laboratory · Block B', amount: 180, currency: 'INR', paymentUnit: 'hourly', notes: '', status: 'pending_review', urgent: false, createdAt: at(0, 8).toISOString(), updatedAt: at(0, 8).toISOString() },
-    { id: 'j-care', hospitalId: HOSPITAL, title: 'Ward Caregiver', department: 'General Medicine', role: 'Caregiver', description: 'Draft request for a daytime caregiver on the general ward.', qualifications: ['Caregiver certificate'], experience: '1+ years', skills: ['Patient mobility'], certifications: [], workersNeeded: 1, date: day(3), startTime: '08:00', endTime: '16:00', shiftType: 'day', location: 'General Ward · Floor 2', amount: 700, currency: 'INR', paymentUnit: 'shift', notes: '', status: 'draft', urgent: false, createdAt: at(0, 10).toISOString(), updatedAt: at(0, 10).toISOString() },
+    jobWithPay({ id: 'j-icu', hospitalId: HOSPITAL, title: 'ICU Registered Nurse', department: 'Critical Care', role: 'ICU Nurse', description: 'Cover a 12-hour ICU vacancy on floor 3. Ventilator competency is required.', qualifications: ['B.Sc Nursing'], experience: '3+ years', skills: ['Ventilator care', 'ACLS'], certifications: ['RN license', 'ACLS'], workersNeeded: 2, date: ymd(soon), startTime: '07:00', endTime: '19:00', shiftType: 'day', location: 'ICU Ward · Floor 3 · Bay 304-312', amount: 950, currency: 'INR', paymentUnit: 'shift', notes: 'Report to the charge desk 15 minutes early.', status: 'approved', urgent: true, createdAt: at(-4, 9).toISOString(), updatedAt: at(-4, 11).toISOString() }),
+    jobWithPay({ id: 'j-er', hospitalId: HOSPITAL, title: 'Emergency Room Nurse (Night)', department: 'Emergency', role: 'ER Nurse', description: 'Night coverage for the emergency bay. Trauma experience preferred.', qualifications: ['GNM or B.Sc Nursing'], experience: '2+ years', skills: ['Triage'], certifications: ['BLS'], workersNeeded: 1, date: day(1), startTime: '19:00', endTime: '07:00', shiftType: 'night', location: 'Emergency · Ground floor', amount: 1100, currency: 'INR', paymentUnit: 'shift', notes: 'Night differential included in the listed amount.', status: 'approved', urgent: true, createdAt: at(-1, 16).toISOString(), updatedAt: at(-1, 18).toISOString() }),
+    jobWithPay({ id: 'j-lab', hospitalId: HOSPITAL, title: 'Lab Technician — Hematology', department: 'Laboratory', role: 'Lab Technician', description: 'Same-day hematology bench support while a staff member is on leave.', qualifications: ['DMLT'], experience: '1+ years', skills: ['Hematology'], certifications: ['State lab registration'], workersNeeded: 1, date: day(2), startTime: '08:00', endTime: '16:00', shiftType: 'day', location: 'Laboratory · Block B', amount: 180, currency: 'INR', paymentUnit: 'hourly', notes: '', status: 'pending_review', urgent: false, createdAt: at(0, 8).toISOString(), updatedAt: at(0, 8).toISOString() }),
+    jobWithPay({ id: 'j-care', hospitalId: HOSPITAL, title: 'Ward Caregiver', department: 'General Medicine', role: 'Caregiver', description: 'Draft request for a daytime caregiver on the general ward.', qualifications: ['Caregiver certificate'], experience: '1+ years', skills: ['Patient mobility'], certifications: [], workersNeeded: 1, date: day(3), startTime: '08:00', endTime: '16:00', shiftType: 'day', location: 'General Ward · Floor 2', amount: 700, currency: 'INR', paymentUnit: 'shift', notes: '', status: 'draft', urgent: false, createdAt: at(0, 10).toISOString(), updatedAt: at(0, 10).toISOString() }),
   ]
 
   const applications: Application[] = [
@@ -164,10 +173,10 @@ export function createSeed() {
   ]
 
   const contracts: Contract[] = [
-    { id: 'c-ananya-icu', hospitalId: HOSPITAL, workerId: 'w-ananya', jobId: 'j-icu', title: 'ICU cover — 7 day contract', role: 'ICU Nurse', department: 'Critical Care', location: 'ICU Ward · Floor 3', startDate: day(-3), endDate: day(3), rate: 950, paymentUnit: 'shift', hoursPerShift: 12, status: 'active', createdAt: at(-4, 19).toISOString() },
-    { id: 'c-rahul-er', hospitalId: HOSPITAL, workerId: 'w-rahul', title: 'Emergency nights — 7 day contract', role: 'ER Nurse', department: 'Emergency', location: 'Emergency · Ground floor', startDate: day(-8), endDate: day(-2), rate: 1100, paymentUnit: 'shift', hoursPerShift: 12, status: 'completed', createdAt: at(-9, 12).toISOString(), completedAt: at(-1, 7).toISOString() },
-    { id: 'c-priya-lab', hospitalId: HOSPITAL, workerId: 'w-priya', title: 'Hematology bench — 4 day contract', role: 'Lab Technician', department: 'Laboratory', location: 'Laboratory · Block B', startDate: day(-4), endDate: day(-1), rate: 180, paymentUnit: 'hourly', hoursPerShift: 8, status: 'completed', createdAt: at(-5, 12).toISOString(), completedAt: at(0, 0, 5).toISOString() },
-    { id: 'c-joseph-ward', hospitalId: HOSPITAL, workerId: 'w-joseph', title: 'General ward support — 7 day contract', role: 'Caregiver', department: 'General Medicine', location: 'General Ward · Floor 2', startDate: day(-14), endDate: day(-8), rate: 700, paymentUnit: 'shift', hoursPerShift: 8, status: 'paid', createdAt: at(-15, 12).toISOString(), completedAt: at(-7, 0, 5).toISOString(), paidAt: at(-6, 11).toISOString(), payoutId: 'p-joseph-ward' },
+    contractWithPay({ id: 'c-ananya-icu', hospitalId: HOSPITAL, workerId: 'w-ananya', jobId: 'j-icu', title: 'ICU cover — 7 day contract', role: 'ICU Nurse', department: 'Critical Care', location: 'ICU Ward · Floor 3', startDate: day(-3), endDate: day(3), rate: 950, paymentUnit: 'shift', hoursPerShift: 12, status: 'active', createdAt: at(-4, 19).toISOString() }),
+    contractWithPay({ id: 'c-rahul-er', hospitalId: HOSPITAL, workerId: 'w-rahul', title: 'Emergency nights — 7 day contract', role: 'ER Nurse', department: 'Emergency', location: 'Emergency · Ground floor', startDate: day(-8), endDate: day(-2), rate: 1100, paymentUnit: 'shift', hoursPerShift: 12, status: 'completed', createdAt: at(-9, 12).toISOString(), completedAt: at(-1, 7).toISOString() }),
+    contractWithPay({ id: 'c-priya-lab', hospitalId: HOSPITAL, workerId: 'w-priya', title: 'Hematology bench — 4 day contract', role: 'Lab Technician', department: 'Laboratory', location: 'Laboratory · Block B', startDate: day(-4), endDate: day(-1), rate: 180, paymentUnit: 'hourly', hoursPerShift: 8, status: 'completed', createdAt: at(-5, 12).toISOString(), completedAt: at(0, 0, 5).toISOString() }),
+    contractWithPay({ id: 'c-joseph-ward', hospitalId: HOSPITAL, workerId: 'w-joseph', title: 'General ward support — 7 day contract', role: 'Caregiver', department: 'General Medicine', location: 'General Ward · Floor 2', startDate: day(-14), endDate: day(-8), rate: 700, paymentUnit: 'shift', hoursPerShift: 8, status: 'paid', createdAt: at(-15, 12).toISOString(), completedAt: at(-7, 0, 5).toISOString(), paidAt: at(-6, 11).toISOString(), payoutId: 'p-joseph-ward' }),
   ]
 
   const shifts: Shift[] = [
@@ -178,8 +187,9 @@ export function createSeed() {
   ]
   const josephShifts = shifts.filter((shift) => shift.contractId === 'c-joseph-ward')
   const josephSummary = summarize(contracts[3], josephShifts)
-  const { toMark, ...breakdown } = josephSummary
+  const { toMark, payRules: _rules, ...breakdown } = josephSummary
   void toMark
+  void _rules
   const payouts: Payout[] = [
     { id: 'p-joseph-ward', number: 'PAY-1001', hospitalId: HOSPITAL, workerId: 'w-joseph', contractId: 'c-joseph-ward', gross: josephSummary.gross, adjustment: 0, amount: josephSummary.gross, currency: 'INR', method: 'bank_transfer', reference: 'NEFT/SBIN/882301', note: '', breakdown, status: 'paid', paidAt: at(-6, 11).toISOString() },
   ]

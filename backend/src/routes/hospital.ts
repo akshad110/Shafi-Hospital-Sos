@@ -14,7 +14,15 @@ const jobSchema = z.object({
   title: z.string().min(3, 'Add a job title'),
   department: z.string().trim().min(2, 'Choose a department'),
   role: z.string().trim().min(2, 'Choose a role'),
-  description: z.string().min(10, 'Describe the requirement'),
+  description: z.string().trim().superRefine((value, ctx) => {
+    const words = value ? value.split(/\s+/).filter(Boolean).length : 0
+    if (!value) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Describe what they will do in this role.' })
+      return
+    }
+    if (words < 10) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Write at least 10 words so staff understand the work. You have ${words}.` })
+    if (words > 80) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Please keep this to 80 words or fewer. You have ${words}.` })
+  }),
   qualifications: z.array(z.string()).min(1, 'Add at least one qualification'),
   experience: z.string().min(1, 'Add experience'),
   skills: z.array(z.string()).min(1, 'Add at least one skill'),
@@ -28,6 +36,15 @@ const jobSchema = z.object({
   amount: z.number().positive('Enter compensation'),
   currency: z.literal('INR'),
   paymentUnit: z.enum(['hourly', 'shift', 'daily']),
+  payRules: z.object({
+    presentPay: z.number().min(0),
+    lateAllowed: z.boolean(),
+    lateDeduction: z.number().min(0),
+    halfDayAllowed: z.boolean(),
+    halfDayPay: z.number().min(0),
+    absentAllowed: z.boolean(),
+    absentPay: z.number().min(0).optional().default(0),
+  }).optional(),
   notes: z.string().optional().default(''),
   urgent: z.boolean().default(false),
   status: z.enum(['draft', 'pending_review']).optional(),

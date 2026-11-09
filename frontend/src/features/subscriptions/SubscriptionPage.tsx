@@ -48,9 +48,9 @@ export default function SubscriptionPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Subscription"
-        title="Plan and billing"
-        description="Start with a 7-day free trial, then choose Starter (1 month), Professional (6 months) or Enterprise (12 months). Switching replaces your current plan straight away."
+        eyebrow="Plan"
+        title="Your plan"
+        description="Free for 7 days, then pick Starter, Professional or Enterprise."
       />
 
       {flash && (

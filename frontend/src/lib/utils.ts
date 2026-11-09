@@ -37,6 +37,10 @@ export function dateOnly(value: string) {
   return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value))
 }
 
+export function dateShort(value: string) {
+  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(new Date(value))
+}
+
 export function today(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
@@ -87,24 +91,24 @@ export const PAYOUT_LABEL: Record<string, string> = {
 
 export const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft',
-  pending_review: 'Pending review',
-  approved: 'Approved',
+  pending_review: 'Waiting',
+  approved: 'Open',
   rejected: 'Rejected',
   cancelled: 'Cancelled',
   filled: 'Filled',
-  under_review: 'Under review',
+  under_review: 'To review',
   shortlisted: 'Shortlisted',
   offered: 'Offered',
   confirmed: 'Confirmed',
-  upcoming: 'Upcoming',
-  active: 'Active',
-  completed: 'Completed',
+  upcoming: 'Coming',
+  active: 'Now',
+  completed: 'Done',
   pending: 'Not marked',
   present: 'Present',
   late: 'Late',
-  half_day: 'Half day',
+  half_day: 'Half',
   absent: 'Absent',
-  ready: 'Ready to pay',
+  ready: 'To pay',
   paid: 'Paid',
   due: 'Payment due',
   trial: 'Free trial',

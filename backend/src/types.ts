@@ -6,6 +6,16 @@ export type ContractStatus = 'active' | 'completed' | 'paid' | 'cancelled'
 export type PlanCode = 'starter' | 'professional' | 'enterprise'
 export type SubscriptionPlan = PlanCode | 'trial'
 export type PaymentUnit = 'hourly' | 'shift' | 'daily'
+
+export interface PayRules {
+  presentPay: number
+  lateAllowed: boolean
+  lateDeduction: number
+  halfDayAllowed: boolean
+  halfDayPay: number
+  absentAllowed: boolean
+  absentPay: number
+}
 export type PayoutMethod = 'bank_transfer' | 'upi' | 'cash' | 'cheque'
 export type NotificationCategory = 'applications' | 'reviews' | 'shifts' | 'payroll' | 'billing' | 'system'
 
@@ -64,6 +74,7 @@ export interface Job {
   amount: number
   currency: 'INR'
   paymentUnit: PaymentUnit
+  payRules?: PayRules
   notes: string
   status: JobStatus
   urgent: boolean
@@ -157,6 +168,7 @@ export interface Contract {
   rate: number
   paymentUnit: PaymentUnit
   hoursPerShift: number
+  payRules?: PayRules
   status: ContractStatus
   createdAt: string
   completedAt?: string
@@ -176,6 +188,11 @@ export interface PayrollBreakdown {
   rate: number
   paymentUnit: PaymentUnit
   gross: number
+  maxGross: number
+  earnedPresent: number
+  earnedLate: number
+  earnedHalf: number
+  earnedAbsent: number
 }
 
 export interface Payout {

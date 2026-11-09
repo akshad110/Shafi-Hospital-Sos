@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Bell, ChevronRight, CreditCard, LifeBuoy, LogOut, MapPin, Shield, Users, Wallet } from 'lucide-react'
+import { BadgeCheck, Bell, ChevronRight, ClipboardCheck, CreditCard, FileText, LifeBuoy, LogOut, MapPin, Shield, Users, Wallet } from 'lucide-react'
 import type { PrefKey } from '../../types/domain'
 import { changePassword, logout, updateHospital } from '../../services/api'
 import { cn, errorMessage, initials, PLAN_LABEL } from '../../lib/utils'
@@ -12,11 +12,11 @@ import { Card, CardHeader, rowClass } from '../../components/ui/Card'
 import { Field, TextInput } from '../../components/ui/Field'
 
 const PREF_LABEL: Record<PrefKey, { title: string; body: string }> = {
-  applications: { title: 'Applications', body: 'New and updated applications' },
-  shifts: { title: 'Shifts & attendance', body: 'Check-ins, completions, incidents' },
-  payroll: { title: 'Payroll', body: 'Contracts ending and salaries due' },
-  billing: { title: 'Billing', body: 'Plan changes and invoices' },
-  reviews: { title: 'Admin reviews', body: 'Approvals and rejections' },
+  applications: { title: 'Applications', body: 'When someone applies' },
+  shifts: { title: 'Shifts', body: 'Who is in and who finished' },
+  payroll: { title: 'Pay', body: 'When salary is ready' },
+  billing: { title: 'Plan', body: 'Plan and invoices' },
+  reviews: { title: 'Admin', body: 'Approvals' },
 }
 
 export default function ProfilePage() {
@@ -100,11 +100,13 @@ export default function ProfilePage() {
 
       <Card className="overflow-hidden">
         <ul className="divide-y divide-line">
-          <Jump to="/workers" icon={Users} title="Worker directory" body="People linked to this hospital" />
-          <Jump to="/attendance" icon={Wallet} title="Attendance & payroll" body="Mark attendance and pay salaries" />
-          <Jump to="/subscription" icon={CreditCard} title="Subscription & billing" body={`${PLAN_LABEL[hospital.plan]} · manage plan and invoices`} />
-          <Jump to="/notifications" icon={Bell} title="Notification centre" body="Live updates on requests, shifts, payroll and billing" />
-          <Jump to="/help" icon={LifeBuoy} title="Help & support" body="Talk to the Shafi operations desk" />
+          <Jump to="/applications" icon={FileText} title="Applications" body="People who applied" />
+          <Jump to="/workers" icon={Users} title="Workers" body="People who work here" />
+          <Jump to="/attendance" icon={ClipboardCheck} title="Manage attendance" body="Mark who came in" />
+          <Jump to="/pay" icon={Wallet} title="Pay staff" body="Pay after days are marked" />
+          <Jump to="/subscription" icon={CreditCard} title="Your plan" body={PLAN_LABEL[hospital.plan]} />
+          <Jump to="/notifications" icon={Bell} title="Updates" body="Requests, shifts and pay" />
+          <Jump to="/help" icon={LifeBuoy} title="Help" body="Message the desk" />
         </ul>
       </Card>
 
@@ -122,7 +124,7 @@ export default function ProfilePage() {
           </div>
 
           <div id="alerts" className="scroll-mt-24 border-t border-line px-4 py-4 sm:px-5 sm:py-5 md:px-6">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-ink"><Bell className="h-4 w-4 text-muted" /> Notification preferences</h3>
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-ink"><Bell className="h-4 w-4 text-muted" /> Alerts</h3>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {(Object.keys(PREF_LABEL) as PrefKey[]).map((key) => (
                 <label key={key} className={cn('flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3.5 py-3 transition-colors', prefs[key] ? 'border-brand/40 bg-mint/50' : 'border-line hover:border-line-strong hover:bg-canvas')}>

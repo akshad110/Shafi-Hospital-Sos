@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AttendanceForm } from '../attendance/AttendanceMarker'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Clock3, MapPin, Phone } from 'lucide-react'
+import { BadgeCheck, ChevronLeft, ChevronRight, Clock3, MapPin, Phone } from 'lucide-react'
 import { addShiftNote, shifts } from '../../services/api'
 import { cn, dayLabel, errorMessage, initials, money, STATUS_LABEL, unitLabel, when } from '../../lib/utils'
 import type { Shift } from '../../types/domain'
@@ -44,49 +44,23 @@ export default function ShiftsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Manage shifts"
-        title="Shift schedule"
-        description="Every confirmed placement with its attendance. Mark present, late, half day or absent from the shift day onwards."
+        eyebrow="Shifts"
+        title="Who is on duty"
+        description="Tap a person to mark Present, Late, Half or Absent."
       />
 
       <Card className="p-3 md:p-4">
-        <div className="no-scrollbar -mx-1 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1">
-          {days.map((day) => {
-            const on = date === day.value
-            const count = source.filter((shift) => shift.date === day.value).length
-            return (
-              <button
-                key={day.value}
-                type="button"
-                onClick={() => setDate(on ? '' : day.value)}
-                className={cn(
-                  'relative min-w-[60px] shrink-0 rounded-xl border px-3 py-2 text-center transition-colors',
-                  on ? 'border-brand bg-brand text-white' : 'border-line-strong bg-white text-ink hover:border-brand hover:bg-mint',
-                  day.today && !on && 'border-navy',
-                )}
-              >
-                <span className={cn('block text-[11px] font-semibold uppercase', on ? 'text-white/80' : 'text-muted')}>{day.label}</span>
-                <span className="block text-base font-semibold">{day.num}</span>
-                {count > 0 && <span className={cn('absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full', on ? 'bg-white' : 'bg-brand')} />}
-              </button>
-            )
-          })}
-        </div>
+        <DayStrip days={days} date={date} source={source} onPick={(value) => setDate(date === value ? '' : value)} />
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Segmented
             value={activeTab}
             onChange={pickTab}
             options={tabs.map((tab) => ({
               value: tab,
-              label: (
-                <span className="flex flex-col items-center gap-0 sm:inline">
-                  <span>{STATUS_LABEL[tab]}</span>
-                  <span className="font-medium opacity-70 sm:ml-1">{source.filter((shift) => shift.status === tab).length}</span>
-                </span>
-              ),
+              label: `${STATUS_LABEL[tab]} ${source.filter((shift) => shift.status === tab).length}`,
             }))}
           />
-          <Select value={department} onChange={(event) => setDepartment(event.target.value)} className="h-10 w-full sm:w-56" aria-label="Department">
+          <Select value={department} onChange={(event) => setDepartment(event.target.value)} className="hidden h-10 w-56 sm:block" aria-label="Department">
             <option value="">All departments</option>
             {[...new Set([...hospital.departments, ...source.map((shift) => shift.department)])].map((item) => <option key={item}>{item}</option>)}
           </Select>
@@ -164,7 +138,7 @@ function ShiftDetail({ shift }: { shift: Shift }) {
       {shift.contractId && (
         <Link to={`/attendance/${shift.contractId}`} className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-xs transition-colors hover:border-brand hover:bg-mint">
           <span className="min-w-0 truncate"><span className="text-muted">Contract · </span><span className="font-semibold text-ink">{shift.contractTitle}</span></span>
-          <span className="shrink-0 font-semibold text-brand-deep">Register →</span>
+          <span className="shrink-0 font-semibold text-brand-deep">Pay →</span>
         </Link>
       )}
 
@@ -194,19 +168,8 @@ function ShiftDetail({ shift }: { shift: Shift }) {
         </a>
       </div>
 
-      <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Mark attendance</h3>
+      <h3 className="mt-5 text-sm font-semibold text-ink">Did they come in?</h3>
       <div className="mt-2"><AttendanceForm key={`${shift.id}-${shift.attendance.markedAt || ''}`} shift={shift} locked={shift.attendanceLocked} /></div>
-      {shift.geofence && <p className="mt-3 rounded-xl border border-brand/20 bg-mint px-3 py-2 text-xs text-brand-deep">{shift.geofence}</p>}
-      <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Activity</h3>
-      <ol className="mt-2 space-y-2">
-        {shift.attendanceLog.length === 0 && <li className="text-sm text-muted">No check-in recorded yet.</li>}
-        {shift.attendanceLog.map((entry) => (
-          <li key={entry.at} className="flex items-center justify-between text-sm">
-            <span className="font-medium text-ink">{entry.label}</span>
-            <span className="text-xs text-muted">{when(entry.at)}</span>
-          </li>
-        ))}
-      </ol>
 
       {shift.notes.length > 0 && (
         <ul className="mt-4 space-y-2">
@@ -215,11 +178,99 @@ function ShiftDetail({ shift }: { shift: Shift }) {
           ))}
         </ul>
       )}
-      <form className="mt-4 flex gap-2" onSubmit={(event) => { event.preventDefault(); if (message.trim()) note.mutate() }}>
-        <TextInput value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add a shift note or incident" aria-label="Shift note" />
+      <form className="mt-4 hidden gap-2 sm:flex" onSubmit={(event) => { event.preventDefault(); if (message.trim()) note.mutate() }}>
+        <TextInput value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add a note" aria-label="Shift note" />
         <Button type="submit" className="shrink-0" disabled={note.isPending || !message.trim()}>Save</Button>
       </form>
       {note.isError && <p className="mt-2 text-xs text-danger">{errorMessage(note.error)}</p>}
+    </div>
+  )
+}
+
+function DayStrip({
+  days,
+  date,
+  source,
+  onPick,
+}: {
+  days: { value: string; label: string; num: number; today: boolean }[]
+  date: string
+  source: Shift[]
+  onPick: (value: string) => void
+}) {
+  const scroller = useRef<HTMLDivElement>(null)
+  const [canLeft, setCanLeft] = useState(false)
+  const [canRight, setCanRight] = useState(false)
+
+  function updateArrows() {
+    const el = scroller.current
+    if (!el) return
+    setCanLeft(el.scrollLeft > 8)
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 8)
+  }
+
+  useEffect(() => {
+    const el = scroller.current
+    if (!el) return
+    updateArrows()
+    el.addEventListener('scroll', updateArrows, { passive: true })
+    const observer = new ResizeObserver(updateArrows)
+    observer.observe(el)
+    return () => {
+      el.removeEventListener('scroll', updateArrows)
+      observer.disconnect()
+    }
+  }, [days])
+
+  function slide(direction: -1 | 1) {
+    scroller.current?.scrollBy({ left: direction * 168, behavior: 'smooth' })
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        aria-label="Earlier days"
+        disabled={!canLeft}
+        onClick={() => slide(-1)}
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line bg-white text-ink shadow-sm disabled:opacity-30 lg:hidden"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <div
+        ref={scroller}
+        className="no-scrollbar flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain scroll-smooth py-0.5"
+      >
+        {days.map((day) => {
+          const on = date === day.value
+          const count = source.filter((shift) => shift.date === day.value).length
+          return (
+            <button
+              key={day.value}
+              type="button"
+              onClick={() => onPick(day.value)}
+              className={cn(
+                'relative min-w-[60px] shrink-0 snap-start rounded-xl border px-3 py-2 text-center transition-colors',
+                on ? 'border-brand bg-brand text-white' : 'border-line-strong bg-white text-ink hover:border-brand hover:bg-mint',
+                day.today && !on && 'border-navy',
+              )}
+            >
+              <span className={cn('block text-[11px] font-semibold uppercase', on ? 'text-white/80' : 'text-muted')}>{day.label}</span>
+              <span className="block text-base font-semibold">{day.num}</span>
+              {count > 0 && <span className={cn('absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full', on ? 'bg-white' : 'bg-brand')} />}
+            </button>
+          )
+        })}
+      </div>
+      <button
+        type="button"
+        aria-label="Later days"
+        disabled={!canRight}
+        onClick={() => slide(1)}
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line bg-white text-ink shadow-sm disabled:opacity-30 lg:hidden"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
     </div>
   )
 }

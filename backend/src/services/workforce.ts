@@ -1,17 +1,19 @@
 import { Contracts, HIDE, Shifts, Tickets, Workers } from '../models.js'
 import { changed } from '../realtime.js'
 import { escapeRegex, nowIso, uid } from '../lib/util.js'
-import { listContracts, liveShiftStatus } from './payroll.js'
+import { payForStatus } from '../lib/payRules.js'
+import { listContracts, liveShiftStatus, rulesFor } from './payroll.js'
 import type { Contract, Shift, Worker } from '../types.js'
 
 async function withWorkers(hospitalId: string, shifts: Shift[]) {
   const [workers, contracts] = await Promise.all([
     Workers.find({ hospitalId, id: { $in: [...new Set(shifts.map((item) => item.workerId))] } }, HIDE).lean<Worker[]>(),
-    Contracts.find({ hospitalId, id: { $in: [...new Set(shifts.map((item) => item.contractId).filter(Boolean))] } }, { _id: 0, id: 1, title: 1, status: 1 }).lean<Pick<Contract, 'id' | 'title' | 'status'>[]>(),
+    Contracts.find({ hospitalId, id: { $in: [...new Set(shifts.map((item) => item.contractId).filter(Boolean))] } }, HIDE).lean<Contract[]>(),
   ])
   return shifts.map((shift) => {
     const worker = workers.find((item) => item.id === shift.workerId)
     const contract = contracts.find((item) => item.id === shift.contractId)
+    const payRules = contract ? rulesFor(contract) : undefined
     return {
       ...shift,
       status: liveShiftStatus(shift),
@@ -21,6 +23,8 @@ async function withWorkers(hospitalId: string, shifts: Shift[]) {
       qualifications: worker?.qualifications || [],
       contractTitle: contract?.title || '',
       attendanceLocked: contract?.status === 'paid',
+      payRules,
+      earned: payRules ? payForStatus(shift.attendance?.status || 'pending', payRules) : 0,
     }
   })
 }

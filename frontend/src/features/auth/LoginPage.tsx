@@ -44,7 +44,7 @@ export function LoginPage() {
             <span className="text-sm font-semibold text-ink">Shafi SOS · Hospital Portal</span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">Welcome back</h1>
-          <p className="mt-1.5 text-[13px] text-muted sm:text-sm">Sign in to manage staffing requests, applications and shifts.</p>
+          <p className="mt-1.5 text-[13px] text-muted sm:text-sm">Sign in to request staff, mark attendance, and pay.</p>
 
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
             {error && <p role="alert" className="rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-2.5 text-sm font-medium text-[#b42323]">{error}</p>}

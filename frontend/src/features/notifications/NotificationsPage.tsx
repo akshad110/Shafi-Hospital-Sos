@@ -62,9 +62,9 @@ export default function NotificationsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader
-        eyebrow="Notifications"
-        title="Desk updates"
-        description="Applications, reviews, shifts, payroll and billing, delivered the moment they happen."
+        eyebrow="Updates"
+        title="What's new"
+        description="Requests, shifts and pay."
         actions={
           <>
             <Button variant="outline" size="sm" disabled={!scopeUnread || readAll.isPending} onClick={() => readAll.mutate()}>

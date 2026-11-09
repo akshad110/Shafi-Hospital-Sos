@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { ArrowRight, CalendarDays, Clock3, MapPin, Phone, Plus, ShieldCheck, Siren } from 'lucide-react'
-import { applications, jobs, notifications, shifts, subscription } from '../../services/api'
+import { applications, contracts, jobs, notifications, shifts, subscription } from '../../services/api'
 import { useSession } from '../../app/session'
 import { cn, dayLabel, daysLeft, greeting, initials, money, PLAN_LABEL, startsIn, unitLabel, when } from '../../lib/utils'
 import { Badge } from '../../components/ui/Badge'
@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const shiftQuery = useQuery({ queryKey: ['shifts'], queryFn: () => shifts() })
   const noteQuery = useQuery({ queryKey: ['notifications', 'recent'], queryFn: () => notifications({ limit: 5 }) })
   const planQuery = useQuery({ queryKey: ['subscription'], queryFn: subscription })
+  const payQuery = useQuery({ queryKey: ['contracts'], queryFn: () => contracts() })
 
   if (jobQuery.isLoading || appQuery.isLoading || shiftQuery.isLoading) return <PageSkeleton />
   if (jobQuery.isError || appQuery.isError || shiftQuery.isError) {
@@ -34,14 +35,14 @@ export default function DashboardPage() {
   const coverage = needed ? Math.min(100, Math.round((confirmed / needed) * 100)) : 0
   const featured = shiftItems.find((shift) => shift.status === 'active') || shiftItems.find((shift) => shift.status === 'upcoming')
   const sub = planQuery.data?.subscription
+  const readyToPay = payQuery.data?.counts.readyToPay || 0
+  const toMark = payQuery.data?.counts.toMark || 0
 
   const stats = [
-    { label: 'Active requests', value: activeJobs.length, hint: 'Live or in review', to: '/find' },
-    { label: 'Applications', value: appQuery.data?.total || 0, hint: 'Received in total', to: '/applications' },
-    { label: 'Shortlisted', value: appItems.filter((item) => item.status === 'shortlisted').length, hint: 'Waiting on admin', to: '/applications?status=shortlisted' },
-    { label: 'Confirmed', value: confirmed, hint: 'Placements locked', to: '/applications?status=confirmed' },
-    { label: 'Upcoming shifts', value: shiftItems.filter((shift) => shift.status === 'upcoming').length, hint: 'Scheduled', to: '/shifts' },
-    { label: 'Pending approval', value: pending.length, hint: 'Not live yet', to: '/find?status=pending_review' },
+    { label: 'Requests', value: activeJobs.length, hint: pending.length ? `${pending.length} waiting` : 'Open now', to: '/find' },
+    { label: 'Applications', value: appQuery.data?.total || 0, hint: 'To review', to: '/applications' },
+    { label: 'Shifts', value: shiftItems.filter((shift) => shift.status === 'upcoming' || shift.status === 'active').length, hint: 'Coming up', to: '/shifts' },
+    { label: 'Confirmed', value: confirmed, hint: 'On duty', to: '/applications?status=confirmed' },
   ]
 
   return (
@@ -53,15 +54,44 @@ export default function DashboardPage() {
             {sub && <Badge status={sub.status === 'active' ? 'offered' : sub.status}>{PLAN_LABEL[sub.plan]} · {daysLeft(sub.renewalDate)} days left</Badge>}
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-[28px] md:text-[32px]">{greeting(hospital.name)}</h1>
-          <p className="mt-1 text-[13px] text-muted sm:text-sm">Manage your staffing requirements and monitor your active shifts.</p>
+          <p className="mt-1 text-[13px] text-muted sm:text-sm">Request staff, check who is in, and pay them.</p>
         </div>
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
-          <Link to="/find?compose=1" className={buttonClass('sos', 'md', 'w-full sm:w-auto')}><Siren className="h-4 w-4" /> Urgent SOS</Link>
+          <Link to="/find?compose=1" className={buttonClass('sos', 'md', 'w-full sm:w-auto')}><Siren className="h-4 w-4" /> Need staff now</Link>
           <Link to="/requests/new" className={buttonClass('primary', 'md', 'w-full sm:w-auto')}><Plus className="h-4 w-4" /> New request</Link>
         </div>
       </div>
 
-      <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3 xl:grid-cols-6" aria-label="Overview">
+      {(readyToPay > 0 || toMark > 0) && (
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+          {toMark > 0 && (
+            <Link
+              to="/attendance"
+              className="flex min-w-0 items-center justify-between gap-3 overflow-hidden rounded-2xl border border-warn/30 bg-warn-soft px-3 py-3 sm:px-4 sm:py-3.5"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-ink">Manage attendance</span>
+                <span className="block truncate text-xs text-muted">{toMark} day{toMark === 1 ? '' : 's'} to mark</span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-warn" />
+            </Link>
+          )}
+          {readyToPay > 0 && (
+            <Link
+              to="/pay"
+              className="flex min-w-0 items-center justify-between gap-3 overflow-hidden rounded-2xl border border-action/30 bg-action-soft px-3 py-3 sm:px-4 sm:py-3.5"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-ink">Pay {readyToPay} staff</span>
+                <span className="block truncate text-xs text-muted">{money(payQuery.data?.counts.due || 0)}</span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-action" />
+            </Link>
+          )}
+        </div>
+      )}
+
+      <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-4" aria-label="Overview">
         {stats.map((stat) => (
           <Link key={stat.label} to={stat.to} className="group min-w-0 bg-white px-3 py-3 transition-colors hover:bg-[#fbfefd] sm:px-4 sm:py-4">
             <p className="truncate text-[11px] font-medium text-muted group-hover:text-brand-deep sm:text-xs">{stat.label}</p>
@@ -109,7 +139,7 @@ export default function DashboardPage() {
               </div>
 
               <Link to={`/shifts?id=${featured.id}`} className={buttonClass('navy', 'md', 'mt-4 h-12 w-full')}>
-                View attendance record <ArrowRight className="h-4 w-4" />
+                Mark attendance <ArrowRight className="h-4 w-4" />
               </Link>
               <p className="mt-2 text-center text-xs font-medium text-[#067647]">{featured.geofence}</p>
             </Card>
@@ -119,9 +149,9 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader
-              title="Active staffing requests"
-              description={pending.length ? `${pending.length} waiting on admin approval — not visible to workers yet` : 'Everything submitted has been reviewed'}
-              action={<Link to="/find" className="shrink-0 text-sm font-semibold text-action hover:text-navy">View all</Link>}
+              title="Your requests"
+              description={pending.length ? `${pending.length} waiting for admin` : 'Open requests'}
+              action={<Link to="/find" className="shrink-0 text-sm font-semibold text-action hover:text-navy">All</Link>}
             />
             {jobItems.filter((job) => job.status !== 'cancelled').length === 0 ? (
               <EmptyState title="No requests yet" body="Create a staffing request to start receiving applications." />
@@ -162,10 +192,10 @@ export default function DashboardPage() {
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-action-soft">
               <div className="h-full rounded-full bg-navy transition-[width] duration-500" style={{ width: `${coverage}%` }} />
             </div>
-            <p className="mt-3 text-xs text-muted">{confirmed} of {needed} approved positions confirmed.</p>
+            <p className="mt-3 text-xs text-muted">{confirmed} of {needed} confirmed.</p>
           </Card>
 
-          <Card className="p-4 md:p-5">
+          <Card className="hidden p-4 md:block md:p-5">
             <p className="text-sm font-semibold text-ink">Applications this week</p>
             <div className="mt-2 h-32 min-w-0 overflow-hidden">
               <ResponsiveContainer width="100%" height="100%">

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, MapPin, Plus, Search, Siren, Users } from 'lucide-react'
+import { CalendarDays, MapPin, Plus, Siren, Users } from 'lucide-react'
 import { cancelJob, createJob, jobs, submitJob } from '../../services/api'
 import { cn, dayLabel, errorMessage, money, unitLabel } from '../../lib/utils'
 import { useRoleOptions } from '../../hooks/useCatalog'
@@ -13,17 +13,16 @@ import { Badge } from '../../components/ui/Badge'
 import { Button, buttonClass } from '../../components/ui/Button'
 import { Card, rowClass } from '../../components/ui/Card'
 import { Chip } from '../../components/ui/Chip'
-import { ChoiceSelect, Field, Select, TextArea, TextInput } from '../../components/ui/Field'
+import { ChoiceSelect, DateInput, Field, SearchInput, Select, TextInput, TimeInput } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/States'
 
 const STATUS_FILTERS = [
   { value: '', label: 'All' },
-  { value: 'approved', label: 'Live' },
-  { value: 'pending_review', label: 'Pending review' },
+  { value: 'approved', label: 'Open' },
+  { value: 'pending_review', label: 'Waiting' },
   { value: 'draft', label: 'Drafts' },
-  { value: 'cancelled', label: 'Cancelled' },
 ]
 
 export default function FindSosPage() {
@@ -60,23 +59,20 @@ export default function FindSosPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="SOS Requests"
-        title="Staffing requests"
-        description="Search and track every request. Urgent requests still depend on worker availability and admin confirmation."
+        eyebrow="Requests"
+        title="Your requests"
+        description="Ask for staff. Admin confirms the person."
         actions={
           <>
-            <Button variant="sos" onClick={() => update('compose', '1')}><Siren className="h-4 w-4" /> Quick SOS</Button>
+            <Button variant="sos" onClick={() => update('compose', '1')}><Siren className="h-4 w-4" /> Need staff now</Button>
             <Link to="/requests/new" className={buttonClass('primary')}><Plus className="h-4 w-4" /> New request</Link>
           </>
         }
       />
 
       <Card className="p-3 md:p-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-            <TextInput value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search title, ward or location" className="pl-10" aria-label="Search requests" />
-          </div>
+        <SearchInput value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by title, ward or location" aria-label="Search requests" />
+        <div className="mt-3 hidden gap-3 md:grid md:grid-cols-3">
           <Select value={role} onChange={(event) => setRole(event.target.value)} aria-label="Role">
             <option value="">All roles</option>
             {roles.map((item) => <option key={item}>{item}</option>)}
@@ -96,11 +92,10 @@ export default function FindSosPage() {
           {STATUS_FILTERS.map((item) => (
             <Chip key={item.value || 'all'} active={status === item.value} onClick={() => update('status', item.value)}>{item.label}</Chip>
           ))}
-          <span className="mx-1 h-5 w-px shrink-0 bg-line" />
-          <Chip tone="sos" active={urgent} onClick={() => update('urgent', urgent ? '' : '1')}>Urgent only</Chip>
+          <Chip tone="sos" active={urgent} onClick={() => update('urgent', urgent ? '' : '1')}>Urgent</Chip>
           {filtersOn && (
             <button type="button" className="ml-auto shrink-0 px-2 text-xs font-semibold text-action hover:text-navy" onClick={() => { setQ(''); setRole(''); setDepartment(''); setShiftType(''); setParams({}, { replace: true }) }}>
-              Clear filters
+              Clear
             </button>
           )}
         </div>
@@ -115,7 +110,7 @@ export default function FindSosPage() {
           {query.isLoading && <div className="space-y-3 p-4">{[0, 1, 2].map((key) => <Skeleton key={key} className="h-20" />)}</div>}
           {query.isError && <div className="p-4"><ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} /></div>}
           {query.data && items.length === 0 && (
-            <EmptyState title="No requests match" body="Adjust the filters or create a new staffing request." action={<Link to="/requests/new" className={buttonClass('outline', 'sm')}>New request</Link>} />
+            <EmptyState title="No requests yet" body="Ask for staff to get started." action={<Link to="/requests/new" className={buttonClass('outline', 'sm')}>New request</Link>} />
           )}
           <ul className="divide-y divide-line">
             {items.map((job) => (
@@ -193,8 +188,16 @@ function RequestDetail({ job, bare }: { job: Job; bare?: boolean }) {
       <dl className="mt-4 divide-y divide-line rounded-xl border border-line text-sm">
         <Row label="When" value={`${dayLabel(job.date)} · ${job.startTime}–${job.endTime}`} />
         <Row label="Where" value={job.location} />
-        <Row label="Headcount" value={`${job.workersNeeded} worker${job.workersNeeded > 1 ? 's' : ''}`} />
+        <Row label="People" value={`${job.workersNeeded}`} />
         <Row label="Pay" value={`${money(job.amount)}${unitLabel(job.paymentUnit)}`} />
+        {job.payRules && (
+          <>
+            <Row label="Present" value={money(job.payRules.presentPay)} />
+            <Row label="Late" value={job.payRules.lateAllowed ? `${money(Math.max(0, job.payRules.presentPay - job.payRules.lateDeduction))} (cut ${money(job.payRules.lateDeduction)})` : 'Not allowed'} />
+            <Row label="Half day" value={job.payRules.halfDayAllowed ? money(job.payRules.halfDayPay) : 'Not allowed'} />
+            <Row label="Absent" value={job.payRules.absentAllowed ? money(0) : 'Not allowed'} />
+          </>
+        )}
         <Row label="Skills" value={job.skills.join(', ') || '—'} />
         <Row label="Experience" value={job.experience} />
       </dl>
@@ -205,7 +208,7 @@ function RequestDetail({ job, bare }: { job: Job; bare?: boolean }) {
       {editable && (
         <div className="mt-5 space-y-2">
           {(job.status === 'draft' || job.status === 'rejected') && (
-            <Button className="w-full" disabled={submit.isPending} onClick={() => submit.mutate()}>{submit.isPending ? 'Submitting…' : 'Submit for admin review'}</Button>
+            <Button className="w-full" disabled={submit.isPending} onClick={() => submit.mutate()}>{submit.isPending ? 'Sending…' : 'Send for review'}</Button>
           )}
           {confirmCancel ? (
             <div className="rounded-xl border border-danger/25 bg-danger-soft p-3">
@@ -274,6 +277,15 @@ function QuickSos({ open, onClose }: { open: boolean; onClose: () => void }) {
       amount: Number(form.amount),
       currency: 'INR',
       paymentUnit: 'shift',
+      payRules: {
+        presentPay: Number(form.amount),
+        lateAllowed: true,
+        lateDeduction: Math.round(Number(form.amount) * 0.1),
+        halfDayAllowed: true,
+        halfDayPay: Math.round(Number(form.amount) / 2),
+        absentAllowed: true,
+        absentPay: 0,
+      },
       notes: form.notes,
       urgent: true,
       status: 'pending_review',
@@ -292,44 +304,36 @@ function QuickSos({ open, onClose }: { open: boolean; onClose: () => void }) {
   }
 
   return (
-    <Modal open={open} title="Quick SOS" description="Raise an urgent staffing request" onClose={close}>
+    <Modal open={open} title="Need staff now" description="Tell us who and when. Admin confirms the person." onClose={close}>
       {done ? (
         <div className="text-center">
           <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-success-soft text-success"><Siren className="h-5 w-5" /></span>
-          <h3 className="mt-3 text-[17px] font-semibold text-ink">Urgent request sent</h3>
-          <p className="mt-1 text-sm text-muted">It is with admin review now. Track it under Pending review.</p>
+          <h3 className="mt-3 text-[17px] font-semibold text-ink">Request sent</h3>
+          <p className="mt-1 text-sm text-muted">Admin will confirm. Track it under Waiting.</p>
           <Button className="mt-5 w-full" onClick={close}>Done</Button>
         </div>
       ) : (
         <form className="grid gap-4" onSubmit={(event) => { event.preventDefault(); mutation.mutate() }}>
-          <p className="rounded-xl border border-sos/20 bg-sos-soft px-3 py-2.5 text-xs leading-5 text-[#9f2323]">
-            This files an urgent request, not a confirmed booking. Workers are confirmed by the admin desk.
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Role">
-              <ChoiceSelect required value={form.role} onChange={(value) => set('role', value)} options={roles} otherLabel="Other role" otherPlaceholder="Type the role" />
-            </Field>
-            <Field label="Department">
-              <ChoiceSelect required value={form.department} onChange={(value) => set('department', value)} options={hospital.departments} otherLabel="Other department" otherPlaceholder="Type the department" />
-            </Field>
-          </div>
+          <Field label="Who do you need?">
+            <ChoiceSelect required value={form.role} onChange={(value) => set('role', value)} options={roles} otherLabel="Other role" otherPlaceholder="Type the role" />
+          </Field>
+          <Field label="Department">
+            <ChoiceSelect required value={form.department} onChange={(value) => set('department', value)} options={hospital.departments} otherLabel="Other department" otherPlaceholder="Type the department" />
+          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Workers needed"><TextInput type="number" min={1} max={50} required value={form.workersNeeded} onChange={(event) => set('workersNeeded', event.target.value)} /></Field>
-            <Field label="Pay per shift (₹)"><TextInput type="number" min={1} required value={form.amount} onChange={(event) => set('amount', event.target.value)} /></Field>
+            <Field label="How many"><TextInput type="number" min={1} max={50} required value={form.workersNeeded} onChange={(event) => set('workersNeeded', event.target.value)} /></Field>
+            <Field label="Pay (₹)"><TextInput type="number" min={1} required value={form.amount} onChange={(event) => set('amount', event.target.value)} /></Field>
           </div>
-          <Field label="Date"><TextInput type="date" required min={new Date().toISOString().slice(0, 10)} value={form.date} onChange={(event) => set('date', event.target.value)} /></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Start"><TextInput type="time" required value={form.startTime} onChange={(event) => set('startTime', event.target.value)} /></Field>
-            <Field label="End"><TextInput type="time" required value={form.endTime} onChange={(event) => set('endTime', event.target.value)} /></Field>
+          <Field label="Start date"><DateInput required min={new Date().toISOString().slice(0, 10)} value={form.date} onChange={(event) => set('date', event.target.value)} /></Field>
+          <div>
+            <p className="mb-1.5 text-[13px] font-semibold text-ink">Hours each day</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="From"><TimeInput required value={form.startTime} onChange={(event) => set('startTime', event.target.value)} /></Field>
+              <Field label="To"><TimeInput required value={form.endTime} onChange={(event) => set('endTime', event.target.value)} /></Field>
+            </div>
           </div>
-          <Field label="Required skills" hint="Separate with commas"><TextInput value={form.skills} onChange={(event) => set('skills', event.target.value)} /></Field>
-          <Field label="Reporting location"><TextInput required value={form.location} onChange={(event) => set('location', event.target.value)} /></Field>
-          <Field label="Special instructions"><TextArea rows={3} value={form.notes} onChange={(event) => set('notes', event.target.value)} /></Field>
           {mutation.isError && <p className="text-sm font-medium text-danger">{errorMessage(mutation.error)}</p>}
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={close}>Cancel</Button>
-            <Button type="submit" variant="sos" disabled={mutation.isPending}>{mutation.isPending ? 'Sending…' : 'Submit urgent request'}</Button>
-          </div>
+          <Button type="submit" variant="sos" className="w-full" disabled={mutation.isPending}>{mutation.isPending ? 'Sending…' : 'Send request'}</Button>
         </form>
       )}
     </Modal>

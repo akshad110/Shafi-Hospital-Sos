@@ -44,13 +44,12 @@ export function Topbar({ hospital, unread, onMenu }: { hospital: Hospital; unrea
   return (
     <header className="sticky top-0 z-20 flex h-14 min-w-0 items-center justify-between gap-2 border-b border-line bg-white/90 px-3 backdrop-blur-md sm:h-16 sm:gap-3 sm:px-4 md:px-8">
       <div className="flex min-w-0 items-center gap-3">
-        <button type="button" onClick={onMenu} className="hidden h-10 w-10 place-items-center rounded-xl border border-line-strong text-muted transition-colors hover:border-brand hover:text-brand-deep md:grid xl:hidden" aria-label="Open navigation">
+        <button type="button" onClick={onMenu} className="grid h-10 w-10 place-items-center rounded-xl border border-line-strong text-muted transition-colors hover:border-brand hover:text-brand-deep xl:hidden" aria-label="Open menu">
           <Menu className="h-4 w-4" />
         </button>
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-sm font-bold text-white md:hidden">S</span>
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-semibold text-ink md:hidden">Shafi SOS</p>
-          <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-muted sm:text-xs md:text-sm md:font-semibold md:text-ink" title={LIVE[live].hint}>
+          <p className="truncate text-[13px] font-semibold text-ink xl:hidden">Shafi SOS</p>
+          <p className="hidden min-w-0 items-center gap-1.5 text-xs font-medium text-muted md:flex md:text-sm md:font-semibold md:text-ink" title={LIVE[live].hint}>
             <span className="relative flex h-2 w-2 shrink-0">
               {live === 'live' && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-50 motion-reduce:hidden" />}
               <span className={cn('relative inline-flex h-2 w-2 rounded-full', LIVE[live].dot)} />
@@ -93,9 +92,9 @@ export function Topbar({ hospital, unread, onMenu }: { hospital: Hospital; unrea
                   <p className="truncate text-xs text-muted">{hospital.email}</p>
                 </div>
                 <div className="p-1.5">
-                  <MenuItem icon={UserRound} label="Hospital profile" onClick={() => go('/profile')} />
-                  <MenuItem icon={CreditCard} label="Subscription" onClick={() => go('/subscription')} />
-                  <MenuItem icon={LifeBuoy} label="Help & support" onClick={() => go('/help')} />
+                  <MenuItem icon={UserRound} label="Profile" onClick={() => go('/profile')} />
+                  <MenuItem icon={CreditCard} label="Plan" onClick={() => go('/subscription')} />
+                  <MenuItem icon={LifeBuoy} label="Help" onClick={() => go('/help')} />
                 </div>
                 <div className="border-t border-line p-1.5">
                   <button type="button" onClick={() => signOut.mutate()} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-danger transition-colors hover:bg-danger-soft">

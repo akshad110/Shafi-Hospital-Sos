@@ -25,7 +25,7 @@ export default function HelpPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Help & support" title="How can we help?" description="Questions about a request, placement or invoice go to the Shafi operations desk." />
+      <PageHeader eyebrow="Help" title="Need a hand?" description="Send a message. We reply by email." />
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
         <div className="space-y-6">

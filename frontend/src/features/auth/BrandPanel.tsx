@@ -1,9 +1,9 @@
 import { CalendarClock, ShieldCheck, Siren } from 'lucide-react'
 
 const POINTS = [
-  { icon: Siren, title: 'Urgent cover in minutes', body: 'Raise a Quick SOS and track it until a worker is confirmed.' },
-  { icon: ShieldCheck, title: 'Admin-reviewed requests', body: 'Every request and placement is checked before it goes live.' },
-  { icon: CalendarClock, title: 'Attendance on record', body: 'Check-ins and completions for every shift, in one place.' },
+  { icon: Siren, title: 'Need someone today?', body: 'Send a request. Admin confirms the person.' },
+  { icon: ShieldCheck, title: 'Checked before it goes live', body: 'Admin reviews every request and hire.' },
+  { icon: CalendarClock, title: 'Mark and pay', body: 'Tap who came in, then pay them.' },
 ]
 
 export function BrandPanel() {
@@ -19,8 +19,8 @@ export function BrandPanel() {
             <span className="block text-xs text-white/70">Hospital Portal</span>
           </span>
         </div>
-        <h2 className="mt-14 max-w-md text-[40px] font-semibold leading-[1.1] tracking-tight">Staff the next shift without the scramble.</h2>
-        <p className="mt-4 max-w-sm text-[15px] leading-7 text-white/75">One desk for staffing requests, applications, confirmed placements and attendance.</p>
+        <h2 className="mt-14 max-w-md text-[40px] font-semibold leading-[1.1] tracking-tight">Get staff for the next shift.</h2>
+        <p className="mt-4 max-w-sm text-[15px] leading-7 text-white/75">Ask for people, see who applied, mark who came in, and pay.</p>
       </div>
       <ul className="relative mt-10 max-w-md space-y-5">
         {POINTS.map((point) => (

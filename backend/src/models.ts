@@ -34,6 +34,15 @@ function define<T>(name: string, fields: Fields, indexes: Record<string, 1 | -1>
 const id = { type: String, required: true, unique: true }
 const hospitalRef = { type: String, required: true, index: true }
 const note = sub({ id: String, message: String, at: String })
+const payRules = sub({
+  presentPay: Number,
+  lateAllowed: { type: Boolean, default: true },
+  lateDeduction: Number,
+  halfDayAllowed: { type: Boolean, default: true },
+  halfDayPay: Number,
+  absentAllowed: { type: Boolean, default: true },
+  absentPay: { type: Number, default: 0 },
+})
 
 export const Users = define<User>('users', {
   id,
@@ -149,6 +158,7 @@ export const Jobs = define<Job>('jobs', {
   amount: Number,
   currency: { type: String, default: 'INR' },
   paymentUnit: { type: String, enum: ['hourly', 'shift', 'daily'] },
+  payRules,
   notes: { type: String, default: '' },
   status: { type: String, enum: ['draft', 'pending_review', 'approved', 'rejected', 'cancelled', 'filled'], index: true },
   urgent: { type: Boolean, default: false },
@@ -181,6 +191,7 @@ export const Contracts = define<Contract>('contracts', {
   rate: Number,
   paymentUnit: { type: String, enum: ['hourly', 'shift', 'daily'] },
   hoursPerShift: { type: Number, default: 8 },
+  payRules,
   status: { type: String, enum: ['active', 'completed', 'paid', 'cancelled'], index: true },
   createdAt: String,
   completedAt: String,
@@ -229,6 +240,11 @@ const breakdown = sub({
   rate: Number,
   paymentUnit: String,
   gross: Number,
+  maxGross: Number,
+  earnedPresent: Number,
+  earnedLate: Number,
+  earnedHalf: Number,
+  earnedAbsent: Number,
 })
 
 export const Payouts = define<Payout>('payouts', {

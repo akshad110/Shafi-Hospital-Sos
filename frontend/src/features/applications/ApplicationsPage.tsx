@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Search } from 'lucide-react'
+import { BadgeCheck } from 'lucide-react'
 import { addApplicationNote, application, applications } from '../../services/api'
 import { cn, dayLabel, errorMessage, initials, money, STATUS_LABEL, unitLabel, when } from '../../lib/utils'
 import { useDebounced } from '../../hooks/useDebounced'
@@ -10,12 +10,12 @@ import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card, rowClass } from '../../components/ui/Card'
 import { Chip } from '../../components/ui/Chip'
-import { TextInput } from '../../components/ui/Field'
+import { SearchInput, TextInput } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/States'
 
-const filters = ['', 'under_review', 'shortlisted', 'offered', 'confirmed', 'rejected']
+const filters = ['', 'under_review', 'confirmed', 'rejected']
 const PAGE_SIZE = 8
 
 export default function ApplicationsPage() {
@@ -47,15 +47,14 @@ export default function ApplicationsPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Applications"
-        title="Worker applications"
-        description="Follow each application through review. Final confirmation stays with the admin desk, so a hire is never made from this page."
+        title="Who applied"
+        description="Admin confirms the hire. You can add notes here."
       />
 
       <Card className="p-3 md:p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <div className="relative md:w-72">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-            <TextInput value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} placeholder="Search worker or request" className="pl-10" aria-label="Search applications" />
+          <div className="w-full md:w-72">
+            <SearchInput value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} placeholder="Search by worker name" aria-label="Search applications" />
           </div>
           <div className="flex min-w-0 flex-wrap gap-2">
             {filters.map((item) => (
@@ -71,7 +70,7 @@ export default function ApplicationsPage() {
         <Card className="min-w-0 overflow-hidden">
           {query.isLoading && <div className="space-y-3 p-4">{[0, 1, 2].map((key) => <Skeleton key={key} className="h-14" />)}</div>}
           {query.isError && <div className="p-4"><ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} /></div>}
-          {query.data && items.length === 0 && <EmptyState title="No applications here" body="Applications appear once workers respond to an approved request." />}
+          {query.data && items.length === 0 && <EmptyState title="No applications yet" body="People show up here after they apply to a request." />}
 
           {items.length > 0 && (
             <>

@@ -46,6 +46,7 @@ export interface Job {
   amount: number
   currency: 'INR'
   paymentUnit: 'hourly' | 'shift' | 'daily'
+  payRules?: PayRules
   notes: string
   status: string
   urgent: boolean
@@ -78,6 +79,16 @@ export interface Application {
 
 export type AttendanceStatus = 'pending' | 'present' | 'late' | 'half_day' | 'absent'
 export type PaymentUnit = 'hourly' | 'shift' | 'daily'
+
+export interface PayRules {
+  presentPay: number
+  lateAllowed: boolean
+  lateDeduction: number
+  halfDayAllowed: boolean
+  halfDayPay: number
+  absentAllowed: boolean
+  absentPay: number
+}
 export type PayoutMethod = 'bank_transfer' | 'upi' | 'cash' | 'cheque'
 export type NoticeCategory = 'applications' | 'reviews' | 'shifts' | 'payroll' | 'billing' | 'system'
 export type PrefKey = Exclude<NoticeCategory, 'system'>
@@ -116,6 +127,8 @@ export interface Shift {
   qualifications: string[]
   contractTitle: string
   attendanceLocked: boolean
+  payRules?: PayRules
+  earned?: number
 }
 
 export interface PayoutAccount {
@@ -161,6 +174,11 @@ export interface PayrollSummary {
   rate: number
   paymentUnit: PaymentUnit
   gross: number
+  maxGross?: number
+  earnedPresent?: number
+  earnedLate?: number
+  earnedHalf?: number
+  earnedAbsent?: number
   toMark: number
 }
 
@@ -177,6 +195,7 @@ export interface ContractCard {
   rate: number
   paymentUnit: PaymentUnit
   hoursPerShift: number
+  payRules?: PayRules
   status: 'active' | 'completed' | 'paid' | 'cancelled'
   createdAt: string
   completedAt?: string
@@ -210,7 +229,7 @@ export interface Payout {
 export interface ContractDetail extends ContractCard {
   worker: (Omit<Worker, 'assignments'>) | null
   payout: Payout | null
-  shifts: Omit<Shift, 'workerName' | 'workerRole' | 'verified' | 'qualifications' | 'contractTitle' | 'attendanceLocked'>[]
+  shifts: (Omit<Shift, 'workerName' | 'workerRole' | 'verified' | 'qualifications' | 'contractTitle' | 'attendanceLocked'> & { earned?: number })[]
 }
 
 export interface ContractCounts {

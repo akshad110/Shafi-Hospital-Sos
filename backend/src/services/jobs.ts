@@ -4,6 +4,7 @@ import { escapeRegex, httpError, nowIso, paging, uid } from '../lib/util.js'
 import { rememberChoices } from './accounts.js'
 import { assertCanPost } from './billing.js'
 import { notify } from './notifications.js'
+import { presentDayPay, resolvePayRules } from '../lib/payRules.js'
 import type { Job } from '../types.js'
 
 export type JobInput = Omit<Job, 'id' | 'hospitalId' | 'createdAt' | 'updatedAt' | 'status'> & { status?: Job['status'] }
@@ -56,6 +57,7 @@ export async function createJob(hospitalId: string, input: JobInput) {
     ...input,
     department: input.department.trim(),
     role: input.role.trim(),
+    payRules: resolvePayRules(input.payRules, presentDayPay(input.amount, input.paymentUnit)),
     status,
     id: uid(),
     hospitalId,

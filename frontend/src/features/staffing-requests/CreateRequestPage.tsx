@@ -1,17 +1,18 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, type UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Check, CheckCircle2 } from 'lucide-react'
-import { requestSchema, steps, type RequestValues } from '../../schemas/request'
+import { MAX_DESC_WORDS, MIN_DESC_WORDS, requestSchema, steps, wordCount, type RequestValues } from '../../schemas/request'
 import { createJob } from '../../services/api'
-import { cn, errorMessage, money, unitLabel } from '../../lib/utils'
+import { defaultCuts } from '../../lib/payRules'
+import { cn, errorMessage, money } from '../../lib/utils'
 import { useRoleOptions } from '../../hooks/useCatalog'
 import { useSession } from '../../app/session'
 import { Button, buttonClass } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
-import { ChoiceSelect, Field, Select, TextArea, TextInput } from '../../components/ui/Field'
+import { ChoiceSelect, DateInput, Field, Select, TextArea, TextInput, TimeInput } from '../../components/ui/Field'
 import { PageHeader } from '../../components/ui/PageHeader'
 
 export default function CreateRequestPage() {
@@ -27,7 +28,12 @@ export default function CreateRequestPage() {
       department: hospital.departments[0] || '',
       role: 'Registered Nurse',
       shiftType: 'day',
-      paymentUnit: 'shift',
+      paymentUnit: 'daily',
+      lateAllowed: true,
+      lateDeduction: 0,
+      halfDayAllowed: true,
+      halfDayPay: 0,
+      absentAllowed: true,
       workersNeeded: 1,
       location: hospital.address,
       certifications: '',
@@ -56,18 +62,20 @@ export default function CreateRequestPage() {
   }
 
   const values = form.watch()
+  const descWords = wordCount(values.description || '')
+  const shift = hoursEachDay(values.startTime, values.endTime)
 
   if (done) {
     return (
       <Card className="mx-auto max-w-lg p-6 text-center md:p-8">
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-success-soft text-success"><CheckCircle2 className="h-6 w-6" /></span>
-        <h1 className="mt-4 text-xl font-semibold text-ink">{done === 'draft' ? 'Draft saved' : 'Sent for admin review'}</h1>
+        <h1 className="mt-4 text-xl font-semibold text-ink">{done === 'draft' ? 'Draft saved' : 'Request sent'}</h1>
         <p className="mt-2 text-sm text-muted">
-          {done === 'draft' ? 'The draft is only visible to your team. Submit it from SOS Requests when ready.' : 'It goes live for workers only after the admin desk approves it.'}
+          {done === 'draft' ? 'Open it from Requests when you are ready to send it.' : 'Admin will review it before workers see it.'}
         </p>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-          <Button variant="outline" onClick={() => { form.reset(); setStep(0); setDone(null); save.reset() }}>Create another</Button>
-          <Button onClick={() => navigate('/find')}>Go to SOS Requests</Button>
+          <Button variant="outline" onClick={() => { form.reset(); setStep(0); setDone(null); save.reset() }}>Ask for someone else</Button>
+          <Button onClick={() => navigate('/find')}>Go to requests</Button>
         </div>
       </Card>
     )
@@ -75,10 +83,10 @@ export default function CreateRequestPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader eyebrow="Staffing request" title="Create a request" description="Five short steps. Nothing is published until admin review approves it." />
+      <PageHeader eyebrow="New request" title="Ask for staff" description="Fill this in. Admin reviews it before it goes live." />
 
       <div>
-        <ol className="grid grid-cols-5 gap-1 sm:gap-2">
+        <ol className="grid grid-cols-3 gap-1 sm:gap-2">
           {steps.map((item, index) => (
             <li key={item.title}>
               <button
@@ -102,11 +110,11 @@ export default function CreateRequestPage() {
       <Card>
         <form onSubmit={form.handleSubmit(() => save.mutate('pending_review'))}>
           <div className="p-4 md:p-6">
-            <h2 className="text-[17px] font-semibold text-ink">{['Basic information', 'Requirements', 'Shift information', 'Compensation', 'Review and submit'][step]}</h2>
+            <h2 className="text-[17px] font-semibold text-ink">{['Staff requirement', 'Shift schedule', 'Daily pay and attendance'][step]}</h2>
             <div className="mt-5">
               {step === 0 && (
                 <div className="grid gap-4">
-                  <Field label="Job title" error={errors.title?.message}><TextInput placeholder="e.g. ICU Registered Nurse" {...form.register('title')} /></Field>
+                  <Field label="Title" error={errors.title?.message}><TextInput placeholder="e.g. ICU nurse for tonight" {...form.register('title')} /></Field>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Department" error={errors.department?.message}>
                       <Controller
@@ -117,7 +125,7 @@ export default function CreateRequestPage() {
                         )}
                       />
                     </Field>
-                    <Field label="Healthcare role" error={errors.role?.message}>
+                    <Field label="Role" error={errors.role?.message}>
                       <Controller
                         control={form.control}
                         name="role"
@@ -127,47 +135,41 @@ export default function CreateRequestPage() {
                       />
                     </Field>
                   </div>
-                  <Field label="Job description" error={errors.description?.message}><TextArea rows={4} placeholder="What the shift covers and what the worker should expect" {...form.register('description')} /></Field>
+                  <Field label="How many people" error={errors.workersNeeded?.message}><TextInput type="number" min={1} {...form.register('workersNeeded')} /></Field>
+                  <div>
+                    <Field label="What will they do?" error={errors.description?.message}>
+                      <TextArea rows={4} placeholder="Describe the ward, duties and anything they should know before they apply." {...form.register('description')} />
+                    </Field>
+                    <p className={cn('mt-1.5 text-xs', descWords > MAX_DESC_WORDS ? 'font-medium text-danger' : descWords > 0 && descWords < MIN_DESC_WORDS ? 'font-medium text-muted' : 'text-muted')}>
+                      {descWords} / {MAX_DESC_WORDS} words
+                      {descWords === 0 && ` · Write ${MIN_DESC_WORDS}–${MAX_DESC_WORDS} words`}
+                      {descWords > 0 && descWords < MIN_DESC_WORDS && ` · At least ${MIN_DESC_WORDS} words needed`}
+                      {descWords > MAX_DESC_WORDS && ` · Shorten this to ${MAX_DESC_WORDS} words`}
+                    </p>
+                  </div>
                 </div>
               )}
               {step === 1 && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2"><Field label="Qualifications" hint="Separate with commas" error={errors.qualifications?.message}><TextInput placeholder="B.Sc Nursing, GNM" {...form.register('qualifications')} /></Field></div>
-                  <Field label="Experience" error={errors.experience?.message}><TextInput placeholder="e.g. 2+ years" {...form.register('experience')} /></Field>
-                  <Field label="Workers needed" error={errors.workersNeeded?.message}><TextInput type="number" min={1} {...form.register('workersNeeded')} /></Field>
-                  <div className="sm:col-span-2"><Field label="Required skills" hint="Separate with commas" error={errors.skills?.message}><TextInput placeholder="Ventilator care, Triage" {...form.register('skills')} /></Field></div>
-                  <div className="sm:col-span-2"><Field label="Certifications" hint="Optional"><TextInput placeholder="ACLS, BLS" {...form.register('certifications')} /></Field></div>
+                <div className="grid gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Start date" error={errors.date?.message}><DateInput min={new Date().toISOString().slice(0, 10)} {...form.register('date')} /></Field>
+                    <Field label="Where" error={errors.location?.message}><TextInput {...form.register('location')} /></Field>
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-semibold text-ink">Hours each day</p>
+                    <p className="mt-0.5 text-xs text-muted">Same start and end time every day of this request.</p>
+                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                      <Field label="From" error={errors.startTime?.message}><TimeInput {...form.register('startTime')} /></Field>
+                      <Field label="To" error={errors.endTime?.message}><TimeInput {...form.register('endTime')} /></Field>
+                    </div>
+                    {shift.hours > 0 && (
+                      <p className="mt-2 text-xs text-muted">{shift.hours} hour{shift.hours === 1 ? '' : 's'} each day{shift.overnight ? ' · overnight shift' : ''}</p>
+                    )}
+                  </div>
                 </div>
               )}
               {step === 2 && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Date" error={errors.date?.message}><TextInput type="date" min={new Date().toISOString().slice(0, 10)} {...form.register('date')} /></Field>
-                  <Field label="Shift type" error={errors.shiftType?.message}>
-                    <Select {...form.register('shiftType')}><option value="day">Day</option><option value="night">Night</option><option value="rotating">Rotating</option></Select>
-                  </Field>
-                  <Field label="Start time" error={errors.startTime?.message}><TextInput type="time" {...form.register('startTime')} /></Field>
-                  <Field label="End time" error={errors.endTime?.message}><TextInput type="time" {...form.register('endTime')} /></Field>
-                  <div className="sm:col-span-2"><Field label="Reporting location" error={errors.location?.message}><TextInput {...form.register('location')} /></Field></div>
-                </div>
-              )}
-              {step === 3 && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Amount (₹)" error={errors.amount?.message}><TextInput type="number" min={1} {...form.register('amount')} /></Field>
-                  <Field label="Paid" error={errors.paymentUnit?.message}>
-                    <Select {...form.register('paymentUnit')}><option value="hourly">Per hour</option><option value="shift">Per shift</option><option value="daily">Per day</option></Select>
-                  </Field>
-                  <div className="sm:col-span-2"><Field label="Additional compensation details" hint="Optional — night differential, meals, travel"><TextArea rows={3} {...form.register('notes')} /></Field></div>
-                </div>
-              )}
-              {step === 4 && (
-                <dl className="divide-y divide-line rounded-xl border border-line text-sm">
-                  <Review label="Role" value={`${values.title || '—'} · ${values.role}`} onEdit={() => setStep(0)} />
-                  <Review label="Department" value={values.department} onEdit={() => setStep(0)} />
-                  <Review label="Requirements" value={`${values.workersNeeded || '—'} workers · ${values.experience || '—'} · ${values.skills || '—'}`} onEdit={() => setStep(1)} />
-                  <Review label="Shift" value={`${values.date || '—'} · ${values.startTime || ''}–${values.endTime || ''} · ${values.shiftType}`} onEdit={() => setStep(2)} />
-                  <Review label="Location" value={values.location} onEdit={() => setStep(2)} />
-                  <Review label="Pay" value={values.amount ? `${money(Number(values.amount))}${unitLabel(values.paymentUnit)}` : '—'} onEdit={() => setStep(3)} />
-                </dl>
+                <PayRulesStep form={form} values={values} errors={errors} />
               )}
             </div>
             {save.isError && <p className="mt-4 text-sm font-medium text-danger">{errorMessage(save.error)}</p>}
@@ -178,31 +180,142 @@ export default function CreateRequestPage() {
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
             <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row [&>*]:w-full sm:[&>*]:w-auto">
-              <Button variant="outline" disabled={save.isPending} onClick={saveDraft}>Save draft</Button>
+              <Button variant="outline" className="hidden sm:inline-flex" disabled={save.isPending} onClick={saveDraft}>Save draft</Button>
               {step < steps.length - 1 ? (
                 <Button onClick={next}>Continue</Button>
               ) : (
-                <Button type="submit" disabled={save.isPending}>{save.isPending ? 'Submitting…' : 'Submit for review'}</Button>
+                <Button type="submit" disabled={save.isPending}>{save.isPending ? 'Sending…' : 'Send request'}</Button>
               )}
             </div>
           </div>
         </form>
       </Card>
       <p className="text-center text-xs text-muted">
-        Need cover in the next few hours? <Link to="/find?compose=1" className={buttonClass('ghost', 'sm', 'h-auto px-1 text-sos hover:bg-transparent hover:text-[#c42a2a]')}>Use Quick SOS</Link>
+        Need someone today? <Link to="/find?compose=1" className={buttonClass('ghost', 'sm', 'h-auto px-1 text-sos hover:bg-transparent hover:text-[#c42a2a]')}>Need staff now</Link>
       </p>
     </div>
   )
 }
 
-function Review({ label, value, onEdit }: { label: string; value?: string; onEdit: () => void }) {
+function PayRulesStep({ form, values, errors }: { form: UseFormReturn<RequestValues>; values: RequestValues; errors: UseFormReturn<RequestValues>['formState']['errors'] }) {
+  const present = Number(values.amount) || 0
+  const latePay = Math.max(0, present - (Number(values.lateDeduction) || 0))
+  const halfPay = Number(values.halfDayPay) || 0
+
+  const amountField = form.register('amount')
+
   return (
-    <div className="flex items-start gap-4 px-3.5 py-3">
-      <dt className="w-28 shrink-0 text-muted">{label}</dt>
-      <dd className="min-w-0 flex-1 font-medium text-ink">{value}</dd>
-      <button type="button" onClick={onEdit} className="shrink-0 text-xs font-semibold text-action hover:text-navy">Edit</button>
+    <div className="grid gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Full present day (₹)" hint="Paid when they come in on time" error={errors.amount?.message}>
+          <TextInput
+            type="number"
+            min={1}
+            inputMode="numeric"
+            {...amountField}
+            onChange={(event) => {
+              amountField.onChange(event)
+              const cuts = defaultCuts(Number(event.target.value) || 0)
+              form.setValue('lateDeduction', cuts.lateDeduction)
+              form.setValue('halfDayPay', cuts.halfDayPay)
+            }}
+          />
+        </Field>
+        <Field label="Paid as" error={errors.paymentUnit?.message}>
+          <Select {...form.register('paymentUnit')}>
+            <option value="daily">Per day</option>
+            <option value="shift">Per shift</option>
+          </Select>
+        </Field>
+      </div>
+
+      <div className="rounded-2xl border border-line p-3 sm:p-4">
+        <p className="text-sm font-semibold text-ink">What can you mark?</p>
+        <p className="mt-0.5 text-xs text-muted">Present is always allowed. Tick the others if this role can use them.</p>
+        <div className="mt-3 grid gap-3">
+          <AllowRow
+            checked={values.lateAllowed}
+            onCheck={(checked) => form.setValue('lateAllowed', checked)}
+            title="Late allowed"
+            hint="They came, but late. Cut a little from the day pay."
+          >
+            {values.lateAllowed && (
+              <Field label="Cut for late (₹)" hint={`Pays ${money(latePay)} that day`}>
+                <TextInput type="number" min={0} inputMode="numeric" {...form.register('lateDeduction')} />
+              </Field>
+            )}
+          </AllowRow>
+          <AllowRow
+            checked={values.halfDayAllowed}
+            onCheck={(checked) => form.setValue('halfDayAllowed', checked)}
+            title="Half day allowed"
+            hint="Default is half of the present-day amount."
+          >
+            {values.halfDayAllowed && (
+              <Field label="Pay for half day (₹)">
+                <TextInput type="number" min={0} inputMode="numeric" {...form.register('halfDayPay')} />
+              </Field>
+            )}
+          </AllowRow>
+          <AllowRow
+            checked={values.absentAllowed}
+            onCheck={(checked) => form.setValue('absentAllowed', checked)}
+            title="Absent allowed"
+            hint="No money for that day."
+          />
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-line text-sm">
+        <div className="border-b border-line bg-canvas px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Each day</div>
+        <PayLine label="Present" value={present ? money(present) : '—'} />
+        <PayLine label="Late" value={values.lateAllowed ? money(latePay) : 'Not allowed'} />
+        <PayLine label="Half day" value={values.halfDayAllowed ? money(halfPay) : 'Not allowed'} />
+        <PayLine label="Absent" value={values.absentAllowed ? money(0) : 'Not allowed'} />
+        {present > 0 && (
+          <div className="flex justify-between gap-3 bg-mint/40 px-3.5 py-2.5 font-semibold text-ink">
+            <span>If all 7 days present</span>
+            <span>{money(present * 7)}</span>
+          </div>
+        )}
+      </div>
     </div>
   )
+}
+
+function AllowRow({ checked, onCheck, title, hint, children }: { checked: boolean; onCheck: (value: boolean) => void; title: string; hint: string; children?: React.ReactNode }) {
+  return (
+    <div className={cn('rounded-xl border px-3 py-3', checked ? 'border-brand/40 bg-mint/40' : 'border-line')}>
+      <label className="flex cursor-pointer items-start justify-between gap-3">
+        <span>
+          <span className="block text-sm font-semibold text-ink">{title}</span>
+          <span className="block text-xs text-muted">{hint}</span>
+        </span>
+        <input type="checkbox" className="mt-1 h-4 w-4 accent-brand" checked={checked} onChange={(event) => onCheck(event.target.checked)} />
+      </label>
+      {checked && children && <div className="mt-3">{children}</div>}
+    </div>
+  )
+}
+
+function PayLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3 border-b border-line px-3.5 py-2.5 last:border-0">
+      <span className="text-muted">{label}</span>
+      <span className="font-medium text-ink">{value}</span>
+    </div>
+  )
+}
+
+function hoursEachDay(startTime?: string, endTime?: string) {
+  if (!startTime || !endTime) return { hours: 0, overnight: false }
+  const [startHour, startMin] = startTime.split(':').map(Number)
+  const [endHour, endMin] = endTime.split(':').map(Number)
+  if ([startHour, startMin, endHour, endMin].some((value) => Number.isNaN(value))) return { hours: 0, overnight: false }
+  let minutes = endHour * 60 + endMin - (startHour * 60 + startMin)
+  const overnight = minutes <= 0
+  if (overnight) minutes += 24 * 60
+  return { hours: Math.round((minutes / 60) * 10) / 10, overnight }
 }
 
 function toPayload(values: RequestValues, status: 'draft' | 'pending_review') {
@@ -212,19 +325,28 @@ function toPayload(values: RequestValues, status: 'draft' | 'pending_review') {
     department: values.department,
     role: values.role,
     description: values.description,
-    qualifications: split(values.qualifications),
-    experience: values.experience,
-    skills: split(values.skills),
+    qualifications: split(values.qualifications).length ? split(values.qualifications) : ['As required'],
+    experience: values.experience || 'Flexible',
+    skills: split(values.skills).length ? split(values.skills) : [values.role],
     certifications: split(values.certifications),
     workersNeeded: Number(values.workersNeeded),
     date: values.date,
     startTime: values.startTime,
     endTime: values.endTime,
-    shiftType: values.shiftType,
+    shiftType: Number((values.startTime || '07:00').slice(0, 2)) >= 19 || Number((values.startTime || '07:00').slice(0, 2)) < 6 ? 'night' as const : 'day' as const,
     location: values.location,
     amount: Number(values.amount),
     currency: 'INR' as const,
     paymentUnit: values.paymentUnit,
+    payRules: {
+      presentPay: Number(values.amount),
+      lateAllowed: values.lateAllowed,
+      lateDeduction: values.lateAllowed ? Number(values.lateDeduction) || 0 : 0,
+      halfDayAllowed: values.halfDayAllowed,
+      halfDayPay: values.halfDayAllowed ? Number(values.halfDayPay) || Math.round(Number(values.amount) / 2) : 0,
+      absentAllowed: values.absentAllowed,
+      absentPay: 0,
+    },
     notes: values.notes || '',
     urgent: false,
     status,

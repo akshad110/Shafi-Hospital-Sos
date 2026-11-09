@@ -13,6 +13,7 @@ const ApplicationsPage = lazy(() => import('../features/applications/Application
 const ShiftsPage = lazy(() => import('../features/shifts/ShiftsPage'))
 const WorkersPage = lazy(() => import('../features/workers/WorkersPage'))
 const AttendancePage = lazy(() => import('../features/attendance/AttendancePage'))
+const PayPage = lazy(() => import('../features/attendance/PayPage'))
 const ContractPage = lazy(() => import('../features/attendance/ContractPage'))
 const SubscriptionPage = lazy(() => import('../features/subscriptions/SubscriptionPage'))
 const NotificationsPage = lazy(() => import('../features/notifications/NotificationsPage'))
@@ -36,6 +37,7 @@ export function AppRouter() {
           <Route path="/workers" element={<Screen><WorkersPage /></Screen>} />
           <Route path="/attendance" element={<Screen><AttendancePage /></Screen>} />
           <Route path="/attendance/:id" element={<Screen><ContractPage /></Screen>} />
+          <Route path="/pay" element={<Screen><PayPage /></Screen>} />
           <Route path="/subscription" element={<Screen><SubscriptionPage /></Screen>} />
           <Route path="/notifications" element={<Screen><NotificationsPage /></Screen>} />
           <Route path="/profile" element={<Screen><ProfilePage /></Screen>} />
