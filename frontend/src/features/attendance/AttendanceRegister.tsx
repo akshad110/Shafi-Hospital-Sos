@@ -1,20 +1,33 @@
+import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCheck } from 'lucide-react'
+import { CheckCheck, History } from 'lucide-react'
 import { markRemaining } from '../../services/api'
 import { fallbackPayRules, payForMark } from '../../lib/payRules'
-import { cn, dayLabel, errorMessage, money, today } from '../../lib/utils'
-import type { ContractDetail } from '../../types/domain'
+import { cn, dayLabel, errorMessage, money, today, when } from '../../lib/utils'
+import type { AttendanceLogEntry, AttendanceStatus, ContractDetail } from '../../types/domain'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card, CardHeader } from '../../components/ui/Card'
+import { Modal } from '../../components/ui/Modal'
 import { lockReason, QuickMarks } from './AttendanceMarker'
 
 export const payrollKeys = ['contracts', 'contract', 'shifts', 'payouts', 'worker', 'workers', 'notifications']
+
+const LOG_PAGE = 10
+
+const MARK_LABEL: Record<AttendanceStatus, string> = {
+  pending: 'Not marked',
+  present: 'Present',
+  late: 'Late',
+  half_day: 'Half day',
+  absent: 'Absent',
+}
 
 export function AttendanceRegister({ item }: { item: ContractDetail }) {
   const queryClient = useQueryClient()
   const locked = item.status === 'paid'
   const due = item.shifts.filter((shift) => shift.status !== 'cancelled' && shift.attendance.status === 'pending' && shift.date <= today()).length
+  const [askAll, setAskAll] = useState(false)
   const bulk = useMutation({
     mutationFn: () => markRemaining(item.id, 'present'),
     onSettled: () => Promise.all(payrollKeys.map((key) => queryClient.invalidateQueries({ queryKey: [key] }))),
@@ -27,9 +40,9 @@ export function AttendanceRegister({ item }: { item: ContractDetail }) {
       <CardHeader
         className="flex-col items-stretch sm:flex-row sm:items-start"
         title="Who came in"
-        description={locked ? 'Paid — these marks are locked.' : 'Each mark changes that day’s pay.'}
+        description={locked ? 'Paid — these marks are locked.' : 'Confirm each mark. After the day ends, it cannot be changed.'}
         action={!locked && due > 0 && (
-          <Button size="sm" variant="outline" className="mt-2 w-full sm:mt-0 sm:w-auto" disabled={bulk.isPending} onClick={() => bulk.mutate()}>
+          <Button size="sm" variant="outline" className="mt-2 w-full sm:mt-0 sm:w-auto" disabled={bulk.isPending} onClick={() => setAskAll(true)}>
             <CheckCheck className="h-4 w-4" /> All present
           </Button>
         )}
@@ -58,7 +71,9 @@ export function AttendanceRegister({ item }: { item: ContractDetail }) {
                   </p>
                 </div>
               </div>
-              <div className="min-w-0 w-full sm:w-auto sm:shrink-0"><QuickMarks shiftId={shift.id} attendance={shift.attendance} reason={reason} payRules={rules} /></div>
+              <div className="min-w-0 w-full sm:w-auto sm:shrink-0">
+                <QuickMarks shiftId={shift.id} shiftDate={shift.date} attendance={shift.attendance} reason={reason} payRules={rules} />
+              </div>
             </li>
           )
         })}
@@ -79,6 +94,79 @@ export function AttendanceRegister({ item }: { item: ContractDetail }) {
           <span>{money(item.summary.maxGross ?? rules.presentPay * workingDays)}</span>
         </div>
       </div>
+
+      <AttendanceChangeLog shifts={item.shifts} />
+
+      <Modal
+        open={askAll}
+        title="Mark all as present?"
+        description={`${due} unmarked day${due === 1 ? '' : 's'} will be set to Present.`}
+        onClose={() => setAskAll(false)}
+      >
+        <p className="text-sm leading-6 text-ink">
+          This only fills days that are still blank. Days that are already marked stay as they are, and yesterday’s marks stay locked.
+        </p>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" className="w-full sm:w-auto" onClick={() => setAskAll(false)}>Go back</Button>
+          <Button className="w-full sm:w-auto" onClick={() => { bulk.mutate(); setAskAll(false) }}>Confirm</Button>
+        </div>
+      </Modal>
     </Card>
   )
+}
+
+function AttendanceChangeLog({ shifts }: { shifts: ContractDetail['shifts'] }) {
+  const entries = useMemo(() => {
+    return shifts
+      .flatMap((shift) => (shift.attendanceLog || []).map((entry) => ({ ...entry, shiftDate: entry.shiftDate || shift.date })))
+      .sort((a, b) => b.at.localeCompare(a.at))
+  }, [shifts])
+  const [page, setPage] = useState(1)
+  const pages = Math.max(1, Math.ceil(entries.length / LOG_PAGE))
+  const safePage = Math.min(page, pages)
+  const slice = entries.slice((safePage - 1) * LOG_PAGE, safePage * LOG_PAGE)
+  if (entries.length === 0) return null
+
+  return (
+    <div className="border-t border-line">
+      <div className="flex items-center gap-2 px-4 py-3 md:px-5">
+        <History className="h-4 w-4 text-muted" />
+        <p className="text-sm font-semibold text-ink">Change log</p>
+        <span className="text-xs text-muted">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span>
+      </div>
+      <ul className="divide-y divide-line border-t border-line">
+        {slice.map((entry, index) => (
+          <li key={`${entry.at}-${entry.shiftDate}-${index}`} className="px-4 py-3 md:px-5">
+            <p className="text-sm font-medium text-ink">{logTitle(entry)}</p>
+            <p className="mt-0.5 text-xs text-muted">
+              {entry.shiftDate ? dayLabel(entry.shiftDate) : 'Shift'}
+              <span className="mx-1.5 text-faint">·</span>
+              {when(entry.at)}
+              {entry.by ? <><span className="mx-1.5 text-faint">·</span>{entry.by}</> : null}
+            </p>
+          </li>
+        ))}
+      </ul>
+      {entries.length > LOG_PAGE && (
+        <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 md:px-5">
+          <p className="text-xs text-muted">
+            {(safePage - 1) * LOG_PAGE + 1}–{Math.min(safePage * LOG_PAGE, entries.length)} of {entries.length}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={safePage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</Button>
+            <Button variant="outline" size="sm" disabled={safePage >= pages} onClick={() => setPage((value) => value + 1)}>Next</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function logTitle(entry: AttendanceLogEntry) {
+  if (entry.from && entry.to && entry.from !== entry.to) {
+    if (entry.to === 'pending') return `${MARK_LABEL[entry.from]} cleared`
+    if (entry.from === 'pending') return `Marked ${MARK_LABEL[entry.to]}`
+    return `${MARK_LABEL[entry.from]} → ${MARK_LABEL[entry.to]}`
+  }
+  return entry.label
 }

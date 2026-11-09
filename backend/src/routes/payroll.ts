@@ -24,12 +24,12 @@ payrollRouter.patch('/hospital/shifts/:shiftId/attendance', asyncHandler(async (
     checkOut: time,
     note: z.string().max(200).optional(),
   }).parse(req.body)
-  found(res, await markAttendance(hospitalId(req), req.params.shiftId, body), 'shift', 'Shift not found')
+  found(res, await markAttendance(hospitalId(req), req.params.shiftId, body, req.userId), 'shift', 'Shift not found')
 }))
 
 payrollRouter.post('/hospital/contracts/:contractId/attendance', asyncHandler(async (req, res) => {
   const body = z.object({ status: z.enum(['present', 'late', 'half_day', 'absent']) }).parse(req.body)
-  found(res, await markRemaining(hospitalId(req), req.params.contractId, body.status), 'result', 'Contract not found')
+  found(res, await markRemaining(hospitalId(req), req.params.contractId, body.status, req.userId), 'result', 'Contract not found')
 }))
 
 payrollRouter.post('/hospital/contracts/:contractId/pay', asyncHandler(async (req, res) => {

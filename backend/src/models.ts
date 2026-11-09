@@ -224,7 +224,14 @@ export const Shifts = define<Shift>('shifts', {
   supervisor: String,
   supervisorRole: String,
   geofence: String,
-  attendanceLog: [sub({ label: String, at: String })],
+  attendanceLog: [sub({
+    label: String,
+    at: String,
+    by: String,
+    from: String,
+    to: String,
+    shiftDate: String,
+  })],
   notes: [note],
 }, [{ hospitalId: 1, date: 1, startTime: 1 }])
 

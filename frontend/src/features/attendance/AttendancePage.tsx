@@ -52,7 +52,8 @@ export default function AttendancePage() {
       ) : (
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
           {showList && (
-            <div className="min-w-0 space-y-3">
+            <div className="min-w-0">
+              <div className="space-y-3 lg:sticky lg:top-24">
               {toMark.length > 0 && (
                 <section className="min-w-0">
                   <p className="mb-2 flex items-center gap-1.5 px-0.5 text-sm font-semibold text-ink">
@@ -89,6 +90,7 @@ export default function AttendancePage() {
                   </div>
                 </section>
               )}
+              </div>
             </div>
           )}
 

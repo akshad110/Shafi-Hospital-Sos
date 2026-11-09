@@ -2,8 +2,9 @@ import { Contracts, HIDE, Payouts, Shifts, Workers } from '../models.js'
 import { changed } from '../realtime.js'
 import { payForStatus, presentDayPay, resolvePayRules, statusAllowed } from '../lib/payRules.js'
 import { httpError, nowIso, shiftHours, shiftWindow, uid, ymd } from '../lib/util.js'
+import { findUserById, getHospital } from './accounts.js'
 import { notify } from './notifications.js'
-import type { AttendanceStatus, Contract, ContractStatus, PayRules, Payout, PayoutMethod, PayrollBreakdown, Shift, Worker } from '../types.js'
+import type { AttendanceLogEntry, AttendanceStatus, Contract, ContractStatus, PayRules, Payout, PayoutMethod, PayrollBreakdown, Shift, Worker } from '../types.js'
 
 const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
   pending: 'Not marked',
@@ -156,9 +157,46 @@ export interface AttendanceInput {
   checkIn?: string
   checkOut?: string
   note?: string
+  actor?: string
+}
+
+export async function actorName(hospitalId: string, userId?: string) {
+  const [hospital, user] = await Promise.all([
+    getHospital(hospitalId),
+    userId ? findUserById(userId) : Promise.resolve(null),
+  ])
+  return hospital?.representative || hospital?.name || user?.email || 'Hospital'
+}
+
+function assertCanMark(shift: Shift, next: AttendanceStatus) {
+  if (shift.status === 'cancelled') throw httpError(409, 'This shift was cancelled')
+  if (shift.date > ymd()) throw httpError(409, 'Attendance can be marked from the day of the shift onwards')
+  const current = shift.attendance?.status || 'pending'
+  if (shift.date < ymd() && current !== 'pending') {
+    throw httpError(409, 'This day is locked. Attendance cannot be changed after the day ends.')
+  }
+  if (shift.date < ymd() && current === 'pending' && next === 'pending') {
+    throw httpError(409, 'This day is locked. Attendance cannot be changed after the day ends.')
+  }
+}
+
+function logEntry(shift: Shift, input: AttendanceInput, now: string): AttendanceLogEntry {
+  const previous = (shift.attendance?.status || 'pending') as AttendanceStatus
+  const who = input.actor || 'Hospital'
+  const fromLabel = ATTENDANCE_LABEL[previous]
+  const toLabel = ATTENDANCE_LABEL[input.status]
+  const changedMark = previous !== input.status && previous !== 'pending' && input.status !== 'pending'
+  const cleared = input.status === 'pending'
+  const label = cleared
+    ? `${fromLabel} cleared by ${who}`
+    : changedMark
+      ? `${fromLabel} → ${toLabel} — changed by ${who}`
+      : `${toLabel} — marked by ${who}`
+  return { label, at: now, by: who, from: previous, to: input.status, shiftDate: shift.date }
 }
 
 async function applyAttendance(shift: Shift, input: AttendanceInput) {
+  assertCanMark(shift, input.status)
   const full = shiftHours(shift.startTime, shift.endTime)
   const now = nowIso()
   const set: Record<string, unknown> = {}
@@ -181,7 +219,7 @@ async function applyAttendance(shift: Shift, input: AttendanceInput) {
   if (status !== shift.status) set.status = status
   await Shifts.updateOne(
     { hospitalId: shift.hospitalId, id: shift.id },
-    { $set: set, $push: { attendanceLog: { label: `${ATTENDANCE_LABEL[input.status]} — marked by hospital`, at: now } } },
+    { $set: set, $push: { attendanceLog: logEntry(shift, input, now) } },
   )
 }
 
@@ -213,31 +251,31 @@ async function pendingFor(hospitalId: string, contract: Contract | null) {
   return summarize(contract, shifts).pending
 }
 
-export async function markAttendance(hospitalId: string, shiftId: string, input: AttendanceInput) {
+export async function markAttendance(hospitalId: string, shiftId: string, input: AttendanceInput, userId?: string) {
   const shift = await Shifts.findOne({ hospitalId, id: shiftId }, HIDE).lean<Shift>()
   if (!shift) return null
-  if (shift.status === 'cancelled') throw httpError(409, 'This shift was cancelled')
-  if (shift.date > ymd()) throw httpError(409, 'Attendance can be marked from the day of the shift onwards')
+  const actor = input.actor || await actorName(hospitalId, userId)
   const contract = await lockedContract(hospitalId, shift.contractId)
   if (contract && !statusAllowed(input.status, rulesFor(contract))) {
     throw httpError(409, `This role does not allow marking ${input.status === 'half_day' ? 'half day' : input.status}`)
   }
   const pendingBefore = await pendingFor(hospitalId, contract)
-  await applyAttendance(shift, input)
+  await applyAttendance(shift, { ...input, actor })
   changed(hospitalId, 'shifts', 'contracts', 'workers')
   await announceIfReady(hospitalId, contract, pendingBefore)
   return Shifts.findOne({ hospitalId, id: shiftId }, HIDE).lean<Shift>()
 }
 
-export async function markRemaining(hospitalId: string, contractId: string, status: Exclude<AttendanceStatus, 'pending'>) {
+export async function markRemaining(hospitalId: string, contractId: string, status: Exclude<AttendanceStatus, 'pending'>, userId?: string) {
   const contract = await lockedContract(hospitalId, contractId)
   if (!contract) return null
   if (!statusAllowed(status, rulesFor(contract))) {
     throw httpError(409, `This role does not allow marking ${status === 'half_day' ? 'half day' : status}`)
   }
+  const actor = await actorName(hospitalId, userId)
   const shifts = await Shifts.find({ hospitalId, contractId, status: { $ne: 'cancelled' }, 'attendance.status': 'pending', date: { $lte: ymd() } }, HIDE).lean<Shift[]>()
   const pendingBefore = await pendingFor(hospitalId, contract)
-  for (const shift of shifts) await applyAttendance(shift, { status })
+  for (const shift of shifts) await applyAttendance(shift, { status, actor })
   if (shifts.length) {
     changed(hospitalId, 'shifts', 'contracts', 'workers')
     await announceIfReady(hospitalId, contract, pendingBefore)

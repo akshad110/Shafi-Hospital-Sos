@@ -27,7 +27,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-canvas text-ink">
+    <div className="min-h-screen overflow-x-clip bg-canvas text-ink">
       <div className="hidden xl:fixed xl:inset-y-0 xl:flex">
         <Sidebar hospital={hospital} permissions={user.permissions} counts={counts} />
       </div>
@@ -55,7 +55,7 @@ export function AppShell() {
         )}
         <main className="mx-auto w-full min-w-0 max-w-[1240px] px-3 pb-24 pt-4 sm:px-4 md:px-8 md:pb-12 md:pt-6 xl:px-10">
           <AnimatePresence mode="wait">
-            <motion.div key={location.pathname} className="min-w-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
+            <motion.div key={location.pathname} className="min-w-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
               <Outlet />
             </motion.div>
           </AnimatePresence>

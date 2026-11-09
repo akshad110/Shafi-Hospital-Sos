@@ -74,10 +74,9 @@ function contractShifts({ contract, supervisor, marks, startTime, endTime }: Shi
       mark === 'pending'
         ? []
         : mark === 'absent'
-          ? [{ label: 'Absent — marked by hospital', at: markedAt }]
+          ? [{ label: 'Absent — marked by Hospital desk', at: markedAt, by: 'Hospital desk', from: 'pending' as const, to: 'absent' as const, shiftDate: dateKey }]
           : [
-              { label: `Checked in at the gate (${checkIn})`, at: markedAt },
-              { label: `Checked out (${checkOut})`, at: markedAt },
+              { label: `${mark === 'late' ? 'Late' : mark === 'half_day' ? 'Half day' : 'Present'} — marked by Hospital desk`, at: markedAt, by: 'Hospital desk', from: 'pending' as const, to: mark, shiftDate: dateKey },
             ]
     const shift: Shift = {
       id: `${contract.id}-s${index + 1}`,

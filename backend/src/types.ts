@@ -133,6 +133,15 @@ export interface Attendance {
   markedBy?: 'gate' | 'hospital'
 }
 
+export interface AttendanceLogEntry {
+  label: string
+  at: string
+  by?: string
+  from?: AttendanceStatus
+  to?: AttendanceStatus
+  shiftDate?: string
+}
+
 export interface Shift {
   id: string
   hospitalId: string
@@ -150,7 +159,7 @@ export interface Shift {
   supervisor: string
   supervisorRole: string
   geofence: string
-  attendanceLog: { label: string; at: string }[]
+  attendanceLog: AttendanceLogEntry[]
   notes: Note[]
 }
 
