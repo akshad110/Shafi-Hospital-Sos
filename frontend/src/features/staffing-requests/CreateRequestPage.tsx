@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Controller, useForm, type UseFormReturn } from 'react-hook-form'
+import { Controller, useForm, type Resolver, type UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Check, CheckCircle2, Plus, X } from 'lucide-react'
@@ -23,7 +23,7 @@ export default function CreateRequestPage() {
   const [step, setStep] = useState(0)
   const [done, setDone] = useState<'draft' | 'approved' | null>(null)
   const form = useForm<RequestValues>({
-    resolver: zodResolver(requestSchema),
+    resolver: zodResolver(requestSchema) as Resolver<RequestValues>,
     defaultValues: {
       department: hospital.departments[0] || '',
       role: 'Registered Nurse',

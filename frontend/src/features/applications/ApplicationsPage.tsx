@@ -475,7 +475,7 @@ function ApplicationTimelineCard({ id }: { id: string }) {
 }
 
 function ApplicationTimeline({ events, status }: { events: { status: string; at: string; note: string }[]; status: string }) {
-  const scroller = useRef<HTMLDivElement>(null)
+  const scroller = useRef<HTMLOListElement>(null)
   const [canLeft, setCanLeft] = useState(false)
   const [canRight, setCanRight] = useState(false)
   const steps = timelineSteps(events, status)
