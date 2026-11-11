@@ -3,7 +3,7 @@ import { Server } from 'socket.io'
 import { createApp } from './app.js'
 import { config } from './config.js'
 import { connectDatabase } from './db.js'
-import { isDatabaseEmpty, seedDatabase } from './data/seeder.js'
+import { ensureHospitalHiring, isDatabaseEmpty, seedDatabase } from './data/seeder.js'
 import { watchDatabase } from './realtime.js'
 import { startScheduler } from './scheduler.js'
 import { attachSocket } from './socket.js'
@@ -18,6 +18,8 @@ try {
 if (config.autoSeed && (await isDatabaseEmpty())) {
   await seedDatabase()
   console.log('Empty database: loaded demo seed data (admin@cityhospital.com / Hospital@123).')
+} else {
+  await ensureHospitalHiring()
 }
 
 const app = createApp()

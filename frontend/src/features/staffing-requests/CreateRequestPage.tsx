@@ -21,7 +21,7 @@ export default function CreateRequestPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [step, setStep] = useState(0)
-  const [done, setDone] = useState<'draft' | 'pending_review' | null>(null)
+  const [done, setDone] = useState<'draft' | 'approved' | null>(null)
   const form = useForm<RequestValues>({
     resolver: zodResolver(requestSchema),
     defaultValues: {
@@ -43,9 +43,9 @@ export default function CreateRequestPage() {
   const errors = form.formState.errors
 
   const save = useMutation({
-    mutationFn: (status: 'draft' | 'pending_review') => createJob(toPayload(form.getValues(), status)),
+    mutationFn: (status: 'draft' | 'approved') => createJob(toPayload(form.getValues(), status)),
     onSuccess: async (job) => {
-      setDone(job.status === 'draft' ? 'draft' : 'pending_review')
+      setDone(job.status === 'draft' ? 'draft' : 'approved')
       await Promise.all([queryClient.invalidateQueries({ queryKey: ['jobs'] }), queryClient.invalidateQueries({ queryKey: ['session'] })])
     },
   })
@@ -71,7 +71,7 @@ export default function CreateRequestPage() {
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-success-soft text-success"><CheckCircle2 className="h-6 w-6" /></span>
         <h1 className="mt-4 text-xl font-semibold text-ink">{done === 'draft' ? 'Draft saved' : 'Request sent'}</h1>
         <p className="mt-2 text-sm text-muted">
-          {done === 'draft' ? 'Open it from Requests when you are ready to send it.' : 'Admin will review it before workers see it.'}
+          {done === 'draft' ? 'Open it from Requests when you are ready to send it.' : 'Workers can see it now. You review who applies from Applications.'}
         </p>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Button variant="outline" onClick={() => { form.reset(); setStep(0); setDone(null); save.reset() }}>Ask for someone else</Button>
@@ -83,7 +83,7 @@ export default function CreateRequestPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader eyebrow="New request" title="Ask for staff" description="Fill this in. Admin reviews it before it goes live." />
+      <PageHeader eyebrow="New request" title="Ask for staff" description="Fill this in. Workers see it as soon as you send it." />
 
       <div>
         <ol className="grid grid-cols-3 gap-1 sm:gap-2">
@@ -108,7 +108,7 @@ export default function CreateRequestPage() {
       </div>
 
       <Card>
-        <form onSubmit={form.handleSubmit(() => save.mutate('pending_review'))}>
+        <form onSubmit={form.handleSubmit(() => save.mutate('approved'))}>
           <div className="p-4 md:p-6">
             <h2 className="text-[17px] font-semibold text-ink">{['Staff requirement', 'Shift schedule', 'Daily pay and attendance'][step]}</h2>
             <div className="mt-5">
@@ -318,7 +318,7 @@ function hoursEachDay(startTime?: string, endTime?: string) {
   return { hours: Math.round((minutes / 60) * 10) / 10, overnight }
 }
 
-function toPayload(values: RequestValues, status: 'draft' | 'pending_review') {
+function toPayload(values: RequestValues, status: 'draft' | 'approved') {
   const split = (value?: string) => (value || '').split(',').map((item) => item.trim()).filter(Boolean)
   return {
     title: values.title,

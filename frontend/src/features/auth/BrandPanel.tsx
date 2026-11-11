@@ -1,8 +1,8 @@
 import { CalendarClock, ShieldCheck, Siren } from 'lucide-react'
 
 const POINTS = [
-  { icon: Siren, title: 'Need someone today?', body: 'Send a request. Admin confirms the person.' },
-  { icon: ShieldCheck, title: 'Checked before it goes live', body: 'Admin reviews every request and hire.' },
+  { icon: Siren, title: 'Need someone today?', body: 'Send a request. You confirm who is hired.' },
+  { icon: ShieldCheck, title: 'You review the papers', body: 'Check certificates, then confirm the hire or ask them to update.' },
   { icon: CalendarClock, title: 'Mark and pay', body: 'Tap who came in, then pay them.' },
 ]
 

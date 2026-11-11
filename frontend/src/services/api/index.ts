@@ -93,8 +93,28 @@ export async function application(id: string) {
   return data.application
 }
 
-export async function addApplicationNote(id: string, message: string) {
-  const { data } = await client.post<{ application: Application }>(`/applications/${id}/notes`, { message })
+export async function shortlistApplication(id: string) {
+  const { data } = await client.post<{ application: Application }>(`/applications/${id}/shortlist`)
+  return data.application
+}
+
+export async function offerApplication(id: string) {
+  const { data } = await client.post<{ application: Application }>(`/applications/${id}/offer`)
+  return data.application
+}
+
+export async function confirmApplication(id: string) {
+  const { data } = await client.post<{ application: Application }>(`/applications/${id}/confirm`)
+  return data.application
+}
+
+export async function rejectApplication(id: string, body: { reason: string }) {
+  const { data } = await client.post<{ application: Application }>(`/applications/${id}/reject`, body)
+  return data.application
+}
+
+export async function requestApplicationDocuments(id: string, body: { code: string; dueBy: string; label?: string }) {
+  const { data } = await client.post<{ application: Application }>(`/applications/${id}/request-documents`, body)
   return data.application
 }
 

@@ -16,7 +16,7 @@ const PREF_LABEL: Record<PrefKey, { title: string; body: string }> = {
   shifts: { title: 'Shifts', body: 'Who is in and who finished' },
   payroll: { title: 'Pay', body: 'When salary is ready' },
   billing: { title: 'Plan', body: 'Plan and invoices' },
-  reviews: { title: 'Admin', body: 'Approvals' },
+  reviews: { title: 'Requests', body: 'When a request goes live' },
 }
 
 export default function ProfilePage() {
@@ -111,7 +111,7 @@ export default function ProfilePage() {
       </Card>
 
       <Card>
-        <CardHeader title="Organisation details" description="Shown to the admin desk and on worker shift briefs." />
+        <CardHeader title="Organisation details" description="Shown on worker shift briefs." />
         <form onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
           <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5 md:p-6">
             <Field label="Hospital name"><TextInput required value={form.name} onChange={(event) => set('name', event.target.value)} /></Field>

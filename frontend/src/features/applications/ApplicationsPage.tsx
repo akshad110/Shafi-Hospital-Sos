@@ -1,22 +1,50 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck } from 'lucide-react'
-import { addApplicationNote, application, applications } from '../../services/api'
+import { BadgeCheck, Check, CircleAlert } from 'lucide-react'
+import {
+  application,
+  applications,
+  confirmApplication,
+  rejectApplication,
+  requestApplicationDocuments,
+} from '../../services/api'
 import { cn, dayLabel, errorMessage, initials, money, STATUS_LABEL, unitLabel, when } from '../../lib/utils'
+import { useCatalog } from '../../hooks/useCatalog'
 import { useDebounced } from '../../hooks/useDebounced'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
+import type { Application } from '../../types/domain'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card, rowClass } from '../../components/ui/Card'
 import { Chip } from '../../components/ui/Chip'
-import { SearchInput, TextInput } from '../../components/ui/Field'
+import { DateInput, Field, SearchInput, Select, TextArea, TextInput } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/States'
 
-const filters = ['', 'under_review', 'confirmed', 'rejected']
+const filters = ['', 'under_review', 'needs_update', 'shortlisted', 'offered', 'confirmed', 'rejected']
 const PAGE_SIZE = 8
+const OPEN = new Set(['under_review', 'needs_update', 'shortlisted', 'offered'])
+const DECLINE_REASONS = [
+  'Certificates do not match this role',
+  'Required documents are missing',
+  'Experience is not enough for this shift',
+  'This position has already been filled',
+  'Shift timing does not work',
+  'Other',
+]
+
+const FALLBACK_REQUESTS = [
+  { code: 'license', label: 'Nursing / RN licence', body: 'Your nursing licence or RN licence is missing. Please upload it before {due}.' },
+  { code: 'acls', label: 'ACLS certificate', body: 'Your ACLS certificate is missing. Please upload it before {due}.' },
+  { code: 'bls', label: 'BLS certificate', body: 'Your BLS certificate is missing. Please upload it before {due}.' },
+  { code: 'registration', label: 'State registration', body: 'Your state registration is missing. Please upload it before {due}.' },
+  { code: 'id', label: 'Government ID', body: 'A government ID is missing. Please update it before {due}.' },
+  { code: 'experience', label: 'Experience letter', body: 'An experience letter is missing. Please upload it before {due}.' },
+  { code: 'fitness', label: 'Medical fitness record', body: 'A medical fitness or vaccination record is missing. Please upload it before {due}.' },
+  { code: 'expiry', label: 'Expired certificate', body: 'A certificate is expired or expiring. Please renew it before {due}.' },
+]
 
 export default function ApplicationsPage() {
   const wide = useMediaQuery('(min-width: 1024px)')
@@ -48,7 +76,7 @@ export default function ApplicationsPage() {
       <PageHeader
         eyebrow="Applications"
         title="Who applied"
-        description="Admin confirms the hire. You can add notes here."
+        description="Check certificates, then confirm the hire, ask for an update, or decline."
       />
 
       <Card className="p-3 md:p-4">
@@ -66,11 +94,11 @@ export default function ApplicationsPage() {
         </div>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="min-w-0 overflow-hidden">
           {query.isLoading && <div className="space-y-3 p-4">{[0, 1, 2].map((key) => <Skeleton key={key} className="h-14" />)}</div>}
           {query.isError && <div className="p-4"><ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} /></div>}
-          {query.data && items.length === 0 && <EmptyState title="No applications yet" body="People show up here after they apply to a request." />}
+          {query.data && items.length === 0 && <EmptyState title="No applications yet" body="People show up here after they apply to your request." />}
 
           {items.length > 0 && (
             <>
@@ -156,19 +184,54 @@ export default function ApplicationsPage() {
 
 function ApplicationDetail({ id }: { id: string }) {
   const queryClient = useQueryClient()
-  const [message, setMessage] = useState('')
+  const { documentRequests } = useCatalog()
+  const templates = documentRequests.length ? documentRequests : FALLBACK_REQUESTS
+  const [panel, setPanel] = useState<'ask' | 'decline' | 'confirm' | null>(null)
+  const [code, setCode] = useState(templates[0]?.code || 'license')
+  const [customDoc, setCustomDoc] = useState('')
+  const [dueBy, setDueBy] = useState(plusDays(2))
+  const [declineReason, setDeclineReason] = useState(DECLINE_REASONS[0])
+  const [declineOther, setDeclineOther] = useState('')
   const query = useQuery({ queryKey: ['application', id], queryFn: () => application(id) })
-  const note = useMutation({
-    mutationFn: () => addApplicationNote(id, message),
-    onSuccess: () => {
-      setMessage('')
-      return queryClient.invalidateQueries({ queryKey: ['application', id] })
-    },
+
+  function refresh() {
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['application', id] }),
+      queryClient.invalidateQueries({ queryKey: ['applications'] }),
+      queryClient.invalidateQueries({ queryKey: ['contracts'] }),
+      queryClient.invalidateQueries({ queryKey: ['shifts'] }),
+      queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    ])
+  }
+
+  const confirm = useMutation({
+    mutationFn: () => confirmApplication(id),
+    onSuccess: () => { setPanel(null); return refresh() },
+  })
+  const decline = useMutation({
+    mutationFn: (reason: string) => rejectApplication(id, { reason }),
+    onSuccess: () => { setPanel(null); setDeclineOther(''); return refresh() },
+  })
+  const requestDocs = useMutation({
+    mutationFn: () => requestApplicationDocuments(id, { code, dueBy, label: code === 'other' ? customDoc.trim() : undefined }),
+    onSuccess: () => { setPanel(null); setCustomDoc(''); return refresh() },
   })
 
   if (query.isLoading) return <div className="space-y-3"><Skeleton className="h-12" /><Skeleton className="h-32" /></div>
   if (query.isError || !query.data) return <ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} />
   const item = query.data
+  const checks = requirementChecks(item)
+  const missing = checks.filter((entry) => !entry.ok)
+  const busy = confirm.isPending || decline.isPending
+  const open = OPEN.has(item.status)
+  const actionError = confirm.error || decline.error || requestDocs.error
+  const declineNote = declineReason === 'Other' ? declineOther.trim() : declineReason
+  const template = templates.find((entry) => entry.code === code)
+  const customName = customDoc.trim() || 'document'
+  const preview = code === 'other'
+    ? `Your ${customName} is missing. Please upload it before ${dueBy}.`
+    : (template?.body || 'Please update the missing document before {due}.').replace('{due}', dueBy)
+  const messages = item.messages || []
 
   return (
     <div>
@@ -182,43 +245,171 @@ function ApplicationDetail({ id }: { id: string }) {
       <div className="mt-3"><Badge status={item.status} /></div>
 
       <dl className="mt-4 divide-y divide-line rounded-xl border border-line text-sm">
-        <div className="flex justify-between gap-3 px-3.5 py-2.5"><dt className="text-muted">Request</dt><dd className="text-right font-medium text-ink">{item.jobTitle}</dd></div>
-        <div className="flex justify-between gap-3 px-3.5 py-2.5"><dt className="text-muted">Shift</dt><dd className="text-right font-medium text-ink">{dayLabel(item.shiftDate)} · {item.startTime}–{item.endTime}</dd></div>
-        <div className="flex justify-between gap-3 px-3.5 py-2.5"><dt className="text-muted">Pay</dt><dd className="font-medium text-ink">{money(item.amount)}{unitLabel(item.paymentUnit)}</dd></div>
+        <div className="flex justify-between gap-3 px-3.5 py-2"><dt className="text-muted">Request</dt><dd className="text-right font-medium text-ink">{item.jobTitle}</dd></div>
+        <div className="flex justify-between gap-3 px-3.5 py-2"><dt className="text-muted">Shift</dt><dd className="text-right font-medium text-ink">{dayLabel(item.shiftDate)} · {item.startTime}–{item.endTime}</dd></div>
+        <div className="flex justify-between gap-3 px-3.5 py-2"><dt className="text-muted">Pay</dt><dd className="font-medium text-ink">{money(item.amount)}{unitLabel(item.paymentUnit)}</dd></div>
       </dl>
 
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        {[...item.qualifications, ...item.skills].map((tag) => (
-          <span key={tag} className="rounded-md bg-canvas px-2 py-1 text-xs font-medium text-ink ring-1 ring-inset ring-line">{tag}</span>
-        ))}
-      </div>
-
-      <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Timeline</h3>
-      <ol className="mt-3 space-y-0">
-        {item.timeline.map((event, index) => (
-          <li key={event.at + event.status} className="relative flex gap-3 pb-4 last:pb-0">
-            {index < item.timeline.length - 1 && <span className="absolute left-[5px] top-4 h-full w-px bg-line" />}
-            <span className={cn('relative mt-1 h-[11px] w-[11px] shrink-0 rounded-full ring-2 ring-white', index === item.timeline.length - 1 ? 'bg-brand' : 'bg-line-strong')} />
-            <div>
-              <p className="text-sm font-semibold text-ink">{STATUS_LABEL[event.status] || event.status}</p>
-              <p className="text-xs text-muted">{event.note} · {when(event.at)}</p>
-            </div>
+      <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Certificates</h3>
+      <ul className="mt-2 space-y-1.5">
+        {checks.map((entry) => (
+          <li key={entry.label} className="flex items-start gap-2 text-sm">
+            {entry.ok
+              ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+              : <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />}
+            <span className={entry.ok ? 'text-ink' : 'font-medium text-ink'}>{entry.label}</span>
+            <span className="ml-auto text-[11px] text-muted">{entry.ok ? 'On file' : 'Missing'}</span>
           </li>
         ))}
+      </ul>
+      {item.credentialExpiry && (
+        <p className="mt-2 text-xs text-muted">Credentials expire {dayLabel(item.credentialExpiry)}</p>
+      )}
+
+      {open && !panel && (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button variant="outline" disabled={busy} onClick={() => { setCode(suggestedCode(missing, templates)); setPanel('ask') }}>Ask to update</Button>
+          <Button variant="danger" disabled={busy} onClick={() => setPanel('decline')}>Decline</Button>
+          <Button className="col-span-2" disabled={busy} onClick={() => setPanel('confirm')}>Confirm hire</Button>
+        </div>
+      )}
+
+      {panel === 'ask' && (
+        <div className="mt-4 rounded-2xl border border-line p-3.5">
+          <p className="text-sm font-semibold text-ink">Ask the worker to update</p>
+          <p className="mt-0.5 text-xs text-muted">They will see this in the worker app.</p>
+          <div className="mt-3">
+            <Field label="What is missing?">
+              <Select value={code} onChange={(event) => setCode(event.target.value)}>
+                {templates.map((entry) => <option key={entry.code} value={entry.code}>{entry.label}</option>)}
+                <option value="other">Other</option>
+              </Select>
+            </Field>
+          </div>
+          {code === 'other' && (
+            <div className="mt-3">
+              <Field label="Document name">
+                <TextInput value={customDoc} onChange={(event) => setCustomDoc(event.target.value)} placeholder="e.g. COVID vaccination card" maxLength={80} />
+              </Field>
+            </div>
+          )}
+          <div className="mt-3">
+            <Field label="Update before">
+              <DateInput value={dueBy} min={plusDays(0)} onChange={(event) => setDueBy(event.target.value)} />
+            </Field>
+          </div>
+          <p className="mt-3 rounded-xl bg-canvas px-3 py-2.5 text-sm leading-6 text-ink">{preview}</p>
+          <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setPanel(null)}>Go back</Button>
+            <Button disabled={requestDocs.isPending || !dueBy || (code === 'other' && customDoc.trim().length < 2)} onClick={() => requestDocs.mutate()}>{requestDocs.isPending ? 'Sending…' : 'Send to worker'}</Button>
+          </div>
+        </div>
+      )}
+
+      {panel === 'decline' && (
+        <div className="mt-4 rounded-2xl border border-danger/25 bg-danger-soft/40 p-3.5">
+          <p className="text-sm font-semibold text-ink">Decline this application?</p>
+          <p className="mt-0.5 text-xs text-muted">{item.workerName} will see the reason in the worker app.</p>
+          <div className="mt-3">
+            <Field label="Reason">
+              <Select value={declineReason} onChange={(event) => setDeclineReason(event.target.value)}>
+                {DECLINE_REASONS.map((reason) => <option key={reason}>{reason}</option>)}
+              </Select>
+            </Field>
+          </div>
+          {declineReason === 'Other' && (
+            <div className="mt-3">
+              <Field label="Tell them why">
+                <TextArea rows={3} value={declineOther} onChange={(event) => setDeclineOther(event.target.value)} placeholder="Write a short reason" />
+              </Field>
+            </div>
+          )}
+          <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setPanel(null)}>Go back</Button>
+            <Button variant="danger" disabled={decline.isPending || declineNote.length < 4} onClick={() => decline.mutate(declineNote)}>
+              {decline.isPending ? 'Declining…' : 'Decline application'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {panel === 'confirm' && (
+        <div className="mt-4 rounded-2xl border border-brand/30 bg-mint/50 p-3.5">
+          <p className="text-sm font-semibold text-ink">Confirm this hire?</p>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            {item.workerName} will be hired for {item.jobTitle}. They will show under Attendance, and the worker app will update.
+          </p>
+          <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setPanel(null)}>Go back</Button>
+            <Button disabled={confirm.isPending} onClick={() => confirm.mutate()}>{confirm.isPending ? 'Confirming…' : 'Confirm hire'}</Button>
+          </div>
+        </div>
+      )}
+      {actionError && <p className="mt-2 text-xs text-danger">{errorMessage(actionError)}</p>}
+
+      <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Timeline</h3>
+      <ol className="mt-1">
+        {item.timeline.map((event, index) => {
+          const last = index === item.timeline.length - 1
+          return (
+            <li key={`${event.at}-${event.status}-${index}`} className="relative flex gap-3 py-2">
+              {index < item.timeline.length - 1 && <span className="absolute left-[5px] top-5 h-[calc(100%-8px)] w-px bg-line" />}
+              <span className={cn('relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ring-4 ring-white', last ? 'bg-brand' : 'bg-line-strong')} />
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-semibold text-ink">{STATUS_LABEL[event.status] || event.status}</p>
+                <p className="text-xs leading-5 text-muted">
+                  {event.note || STATUS_LABEL[event.status] || event.status}
+                  <span className="text-faint"> · {when(event.at)}</span>
+                </p>
+              </div>
+            </li>
+          )
+        })}
       </ol>
 
-      {item.notes.length > 0 && (
-        <ul className="mt-4 space-y-2">
-          {item.notes.map((entry) => (
-            <li key={entry.id} className="rounded-xl bg-canvas px-3 py-2 text-sm text-ink">{entry.message}<span className="mt-0.5 block text-[11px] text-muted">{when(entry.at)}</span></li>
-          ))}
-        </ul>
+      {messages.length > 0 && (
+        <>
+          <h3 className="mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Sent to worker</h3>
+          <ul className="mt-2 space-y-2">
+            {messages.slice().reverse().map((message) => (
+              <li key={message.id} className="rounded-xl bg-canvas px-3 py-2.5">
+                <p className="text-sm leading-5 text-ink">{message.body}</p>
+                <p className="mt-1 text-[11px] text-faint">{message.dueBy ? `Due ${dayLabel(message.dueBy)} · ` : ''}{when(message.at)}</p>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
-      <form className="mt-4 flex gap-2" onSubmit={(event) => { event.preventDefault(); if (message.trim()) note.mutate() }}>
-        <TextInput value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add an internal note" aria-label="Internal note" />
-        <Button type="submit" className="shrink-0" disabled={note.isPending || !message.trim()}>Save</Button>
-      </form>
-      {note.isError && <p className="mt-2 text-xs text-danger">{errorMessage(note.error)}</p>}
     </div>
   )
+}
+
+function plusDays(days: number) {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+function covered(have: string[], need: string) {
+  const needle = need.trim().toLowerCase()
+  return have.some((item) => {
+    const value = item.trim().toLowerCase()
+    return value === needle || value.includes(needle) || needle.includes(value)
+  })
+}
+
+function requirementChecks(item: Application) {
+  const have = [...item.qualifications, ...item.certifications, ...item.skills]
+  const needed = [...(item.jobQualifications || []), ...(item.jobCertifications || []), ...(item.jobSkills || [])]
+  const unique = [...new Set(needed.filter(Boolean))]
+  if (unique.length === 0) {
+    return have.slice(0, 6).map((label) => ({ label, ok: true }))
+  }
+  return unique.map((label) => ({ label, ok: covered(have, label) }))
+}
+
+function suggestedCode(missing: { label: string }[], templates: { code: string; label: string }[]) {
+  const blob = missing.map((entry) => entry.label.toLowerCase()).join(' ')
+  const hit = templates.find((entry) => blob.includes(entry.code) || blob.includes(entry.label.toLowerCase().split(/[\s/]/)[0]))
+  return hit?.code || templates[0]?.code || 'license'
 }

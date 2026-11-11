@@ -1,5 +1,5 @@
 export type JobStatus = 'draft' | 'pending_review' | 'approved' | 'rejected' | 'cancelled' | 'filled'
-export type ApplicationStatus = 'under_review' | 'shortlisted' | 'rejected' | 'offered' | 'confirmed'
+export type ApplicationStatus = 'under_review' | 'needs_update' | 'shortlisted' | 'rejected' | 'offered' | 'confirmed'
 export type ShiftStatus = 'upcoming' | 'active' | 'completed' | 'cancelled'
 export type AttendanceStatus = 'pending' | 'present' | 'late' | 'half_day' | 'absent'
 export type ContractStatus = 'active' | 'completed' | 'paid' | 'cancelled'
@@ -97,6 +97,7 @@ export interface Worker {
   phone: string
   role: string
   qualifications: string[]
+  certifications: string[]
   skills: string[]
   experience: string
   verified: boolean
@@ -112,6 +113,14 @@ export interface Note {
   at: string
 }
 
+export interface WorkerMessage {
+  id: string
+  code: string
+  body: string
+  dueBy: string
+  at: string
+}
+
 export interface Application {
   id: string
   hospitalId: string
@@ -121,6 +130,7 @@ export interface Application {
   appliedAt: string
   timeline: { status: string; at: string; note: string }[]
   notes: Note[]
+  messages: WorkerMessage[]
 }
 
 export interface Attendance {

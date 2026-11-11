@@ -21,7 +21,6 @@ import { EmptyState, ErrorState, Skeleton } from '../../components/ui/States'
 const STATUS_FILTERS = [
   { value: '', label: 'All' },
   { value: 'approved', label: 'Open' },
-  { value: 'pending_review', label: 'Waiting' },
   { value: 'draft', label: 'Drafts' },
 ]
 
@@ -61,7 +60,7 @@ export default function FindSosPage() {
       <PageHeader
         eyebrow="Requests"
         title="Your requests"
-        description="Ask for staff. Admin confirms the person."
+        description="Ask for staff. You review and confirm who is hired."
         actions={
           <>
             <Button variant="sos" onClick={() => update('compose', '1')}><Siren className="h-4 w-4" /> Need staff now</Button>
@@ -208,7 +207,7 @@ function RequestDetail({ job, bare }: { job: Job; bare?: boolean }) {
       {editable && (
         <div className="mt-5 space-y-2">
           {(job.status === 'draft' || job.status === 'rejected') && (
-            <Button className="w-full" disabled={submit.isPending} onClick={() => submit.mutate()}>{submit.isPending ? 'Sending…' : 'Send for review'}</Button>
+            <Button className="w-full" disabled={submit.isPending} onClick={() => submit.mutate()}>{submit.isPending ? 'Posting…' : 'Post request'}</Button>
           )}
           {confirmCancel ? (
             <div className="rounded-xl border border-danger/25 bg-danger-soft p-3">
@@ -263,7 +262,7 @@ function QuickSos({ open, onClose }: { open: boolean; onClose: () => void }) {
       title: `Urgent ${form.role}`,
       department: form.department,
       role: form.role,
-      description: form.notes || `Urgent cover for ${form.role}. Subject to worker availability and admin confirmation.`,
+      description: form.notes || `Urgent cover for ${form.role}. Workers can apply as soon as this is posted.`,
       qualifications: [form.role],
       experience: 'Relevant clinical experience',
       skills: form.skills.split(',').map((item) => item.trim()).filter(Boolean),
@@ -288,7 +287,7 @@ function QuickSos({ open, onClose }: { open: boolean; onClose: () => void }) {
       },
       notes: form.notes,
       urgent: true,
-      status: 'pending_review',
+      status: 'approved',
     }),
     onSuccess: async () => {
       setDone(true)
@@ -304,12 +303,12 @@ function QuickSos({ open, onClose }: { open: boolean; onClose: () => void }) {
   }
 
   return (
-    <Modal open={open} title="Need staff now" description="Tell us who and when. Admin confirms the person." onClose={close}>
+    <Modal open={open} title="Need staff now" description="Tell us who and when. You confirm the person from Applications." onClose={close}>
       {done ? (
         <div className="text-center">
           <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-success-soft text-success"><Siren className="h-5 w-5" /></span>
           <h3 className="mt-3 text-[17px] font-semibold text-ink">Request sent</h3>
-          <p className="mt-1 text-sm text-muted">Admin will confirm. Track it under Waiting.</p>
+          <p className="mt-1 text-sm text-muted">Workers can see it now. Review applicants from Applications.</p>
           <Button className="mt-5 w-full" onClick={close}>Done</Button>
         </div>
       ) : (

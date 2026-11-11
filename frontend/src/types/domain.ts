@@ -53,6 +53,14 @@ export interface Job {
   createdAt: string
 }
 
+export interface WorkerMessage {
+  id: string
+  code: string
+  body: string
+  dueBy: string
+  at: string
+}
+
 export interface Application {
   id: string
   jobId: string
@@ -60,13 +68,15 @@ export interface Application {
   status: string
   appliedAt: string
   timeline: { status: string; at: string; note: string }[]
-  notes: { id: string; message: string; at: string }[]
+  messages: WorkerMessage[]
   workerName: string
   role: string
   qualifications: string[]
+  certifications: string[]
   skills: string[]
   experience: string
   verified: boolean
+  credentialExpiry?: string
   jobTitle: string
   department: string
   amount: number
@@ -75,6 +85,9 @@ export interface Application {
   startTime: string
   endTime: string
   location: string
+  jobQualifications?: string[]
+  jobCertifications?: string[]
+  jobSkills?: string[]
 }
 
 export type AttendanceStatus = 'pending' | 'present' | 'late' | 'half_day' | 'absent'
@@ -154,6 +167,7 @@ export interface Worker {
   phone: string
   role: string
   qualifications: string[]
+  certifications?: string[]
   skills: string[]
   experience: string
   verified: boolean
@@ -276,6 +290,7 @@ export interface Catalog {
   faqs: { q: string; a: string }[]
   supportContact: { email: string; phone: string; hours: string }
   payoutMethods: { value: PayoutMethod; label: string }[]
+  documentRequests: { code: string; label: string; body: string }[]
 }
 
 export type PlanCode = 'starter' | 'professional' | 'enterprise'

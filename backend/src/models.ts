@@ -123,6 +123,7 @@ export const Workers = define<Worker>('workers', {
   phone: { type: String, default: '' },
   role: String,
   qualifications: [String],
+  certifications: [String],
   skills: [String],
   experience: String,
   verified: Boolean,
@@ -171,10 +172,11 @@ export const Applications = define<Application>('applications', {
   hospitalId: hospitalRef,
   jobId: { type: String, index: true },
   workerId: { type: String, index: true },
-  status: { type: String, enum: ['under_review', 'shortlisted', 'rejected', 'offered', 'confirmed'] },
+  status: { type: String, enum: ['under_review', 'needs_update', 'shortlisted', 'rejected', 'offered', 'confirmed'] },
   appliedAt: String,
   timeline: [sub({ status: String, at: String, note: String })],
   notes: [note],
+  messages: [sub({ id: String, code: String, body: String, dueBy: String, at: String })],
 }, [{ hospitalId: 1, appliedAt: -1 }])
 
 export const Contracts = define<Contract>('contracts', {

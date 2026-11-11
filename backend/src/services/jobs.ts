@@ -32,17 +32,17 @@ export async function getJob(hospitalId: string, id: string) {
   return Jobs.findOne({ hospitalId, id }, HIDE).lean<Job>()
 }
 
-async function reviewNotice(hospitalId: string, job: Job) {
+async function liveNotice(hospitalId: string, job: Job) {
   await notify(hospitalId, {
     type: 'review',
-    title: 'Request submitted for review',
-    body: `${job.title} is waiting for admin approval.`,
+    title: 'Request is live',
+    body: `${job.title} is visible to workers. You can review applications from this portal.`,
     href: `/find?id=${job.id}`,
   })
 }
 
 export async function createJob(hospitalId: string, input: JobInput) {
-  const status = input.status === 'draft' ? 'draft' : 'pending_review'
+  const status = input.status === 'draft' ? 'draft' : 'approved'
   if (status !== 'draft') await assertCanPost(hospitalId)
   const duplicate = await Jobs.exists({
     hospitalId,
@@ -67,7 +67,7 @@ export async function createJob(hospitalId: string, input: JobInput) {
   await Jobs.create(job)
   await rememberChoices(hospitalId, job)
   changed(hospitalId, 'jobs')
-  if (status === 'pending_review') await reviewNotice(hospitalId, job)
+  if (status === 'approved') await liveNotice(hospitalId, job)
   return job
 }
 
@@ -96,12 +96,12 @@ export async function submitJob(hospitalId: string, id: string) {
   await assertCanPost(hospitalId)
   const next = await Jobs.findOneAndUpdate(
     { hospitalId, id, status: { $in: ['draft', 'rejected'] } },
-    { $set: { status: 'pending_review', updatedAt: nowIso() } },
+    { $set: { status: 'approved', updatedAt: nowIso() } },
     { new: true, projection: HIDE },
   ).lean<Job>()
   if (!next) throw httpError(409, 'This request was already submitted')
   changed(hospitalId, 'jobs')
-  await reviewNotice(hospitalId, next)
+  await liveNotice(hospitalId, next)
   return next
 }
 

@@ -1,3 +1,4 @@
+import { DOCUMENT_REQUESTS } from './lib/documentRequests.js'
 import { Catalogs } from './models.js'
 
 export interface Catalog {
@@ -6,14 +7,15 @@ export interface Catalog {
   faqs: { q: string; a: string }[]
   supportContact: { email: string; phone: string; hours: string }
   payoutMethods: { value: string; label: string }[]
+  documentRequests: { code: string; label: string; body: string }[]
 }
 
 export const CATALOG_SEED: Catalog = {
   roles: ['Registered Nurse', 'ICU Nurse', 'ER Nurse', 'Technician', 'Lab Technician', 'Caregiver'],
   supportTopics: ['Staffing request', 'Application or placement', 'Shift or attendance', 'Salary and payouts', 'Billing and plans', 'Account access'],
   faqs: [
-    { q: 'Why is my request not visible to workers?', a: 'Every request goes through admin review first. It goes live once it shows as Approved.' },
-    { q: 'Can I confirm a worker myself?', a: 'No. The admin desk confirms placements so every hospital gets the same credential checks.' },
+    { q: 'Why is my request not visible to workers?', a: 'Send the request from this portal. Workers see it as soon as it is posted.' },
+    { q: 'Can I confirm a worker myself?', a: 'Yes. Open Applications, check their certificates, then confirm the hire or decline with a reason.' },
     { q: 'When can I pay a worker?', a: 'Once their contract period is over and every shift has an attendance mark, the salary is ready to pay from Attendance & Payroll.' },
     { q: 'What happens when my free trial ends?', a: 'Existing shifts continue, but you need a plan to post new requests.' },
   ],
@@ -24,6 +26,7 @@ export const CATALOG_SEED: Catalog = {
     { value: 'cash', label: 'Cash' },
     { value: 'cheque', label: 'Cheque' },
   ],
+  documentRequests: DOCUMENT_REQUESTS.map((item) => ({ code: item.code, label: item.label, body: item.body })),
 }
 
 export async function getCatalog(): Promise<Catalog> {

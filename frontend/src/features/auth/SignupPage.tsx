@@ -39,7 +39,7 @@ export function SignupPage() {
       <main className="flex min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:px-5 sm:py-10">
         <div className="w-full max-w-[460px]">
           <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">Register your hospital</h1>
-          <p className="mt-1.5 text-[13px] text-muted sm:text-sm">You start on a 7-day free trial. The organisation is verified by the admin desk.</p>
+          <p className="mt-1.5 text-[13px] text-muted sm:text-sm">You start on a 7-day free trial. Post requests and confirm hires from this portal.</p>
 
           <form onSubmit={onSubmit} className="mt-8 grid gap-4">
             {error && <p role="alert" className="rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-2.5 text-sm font-medium text-[#b42323]">{error}</p>}

@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { session } from '../services/api'
+import { isConnectionError } from '../lib/utils'
 import { RealtimeProvider } from './realtime'
 import type { Hospital, SessionUser } from '../types/domain'
 
@@ -33,12 +34,17 @@ export function SessionGate({ children, login }: { children: React.ReactNode; lo
   }
 
   if (me.isError && !(axios.isAxiosError(me.error) && me.error.response?.status === 401)) {
+    const offline = isConnectionError(me.error)
     return (
       <div className="grid min-h-screen place-items-center bg-canvas px-6">
         <div className="max-w-md text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">The hospital API is not reachable</h1>
-          <p className="mt-2 text-sm text-muted">Start the API on port 5000, then retry. The portal does not open on saved login data alone.</p>
-          <button type="button" onClick={() => me.refetch()} className="mt-5 h-11 rounded-xl bg-brand px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-deep">Retry</button>
+          <h1 className="text-2xl font-semibold tracking-tight">{offline ? 'We couldn’t connect' : 'Something went wrong'}</h1>
+          <p className="mt-2 text-sm text-muted">
+            {offline
+              ? 'Please check your internet connection and try again.'
+              : 'Please try again in a moment. If this keeps happening, sign in again.'}
+          </p>
+          <button type="button" onClick={() => me.refetch()} className="mt-5 h-11 rounded-xl bg-brand px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-deep">Try again</button>
         </div>
       </div>
     )

@@ -15,6 +15,7 @@ const tones: Record<string, string> = {
   offered: 'bg-action-soft text-action ring-action/20',
   pending_review: 'bg-warn-soft text-[#8f5300] ring-warn/30',
   under_review: 'bg-warn-soft text-[#8f5300] ring-warn/30',
+  needs_update: 'bg-warn-soft text-[#8f5300] ring-warn/30',
   pending: 'bg-canvas text-muted ring-line-strong',
   due: 'bg-warn-soft text-[#8f5300] ring-warn/30',
   upcoming: 'bg-mint text-brand-deep ring-brand/25',

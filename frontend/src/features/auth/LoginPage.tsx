@@ -28,7 +28,7 @@ export function LoginPage() {
       await queryClient.invalidateQueries({ queryKey: ['session'] })
       navigate('/')
     } catch (err) {
-      setError(errorMessage(err, 'Login failed'))
+      setError(errorMessage(err, 'Could not sign in. Please try again.'))
     } finally {
       setLoading(false)
     }

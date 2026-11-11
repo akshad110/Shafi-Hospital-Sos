@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { getCatalog } from '../catalog.js'
 import { asyncHandler, type AuthedRequest } from '../http.js'
 import { getHospital, updateHospital } from '../services/accounts.js'
-import { addApplicationNote, getApplication, listApplications } from '../services/applications.js'
+import { confirmApplication, getApplication, listApplications, offerApplication, rejectApplication, requestDocuments, shortlistApplication } from '../services/applications.js'
 import { changePlan, getSubscription, listBilling } from '../services/billing.js'
 import { cancelJob, createJob, getJob, listJobs, submitJob, updateJob, type JobInput } from '../services/jobs.js'
 import { addShiftNote, createTicket, getShift, getWorker, listShifts, listWorkers } from '../services/workforce.js'
@@ -47,7 +47,7 @@ const jobSchema = z.object({
   }).optional(),
   notes: z.string().optional().default(''),
   urgent: z.boolean().default(false),
-  status: z.enum(['draft', 'pending_review']).optional(),
+  status: z.enum(['draft', 'pending_review', 'approved']).optional(),
 })
 
 const pageQuery = {
@@ -139,9 +139,32 @@ hospitalRouter.get('/applications/:applicationId', asyncHandler(async (req, res)
   found(res, await getApplication(hospitalId(req), req.params.applicationId), 'application', 'Application not found')
 }))
 
-hospitalRouter.post('/applications/:applicationId/notes', asyncHandler(async (req, res) => {
-  const body = z.object({ message: z.string().trim().min(2, 'Write a short note') }).parse(req.body)
-  found(res, await addApplicationNote(hospitalId(req), req.params.applicationId, body.message), 'application', 'Application not found')
+hospitalRouter.post('/applications/:applicationId/shortlist', asyncHandler(async (req, res) => {
+  found(res, await shortlistApplication(hospitalId(req), req.params.applicationId), 'application', 'Application not found')
+}))
+
+hospitalRouter.post('/applications/:applicationId/offer', asyncHandler(async (req, res) => {
+  found(res, await offerApplication(hospitalId(req), req.params.applicationId), 'application', 'Application not found')
+}))
+
+hospitalRouter.post('/applications/:applicationId/confirm', asyncHandler(async (req, res) => {
+  found(res, await confirmApplication(hospitalId(req), req.params.applicationId), 'application', 'Application not found')
+}))
+
+hospitalRouter.post('/applications/:applicationId/reject', asyncHandler(async (req, res) => {
+  const body = z.object({
+    reason: z.string().trim().min(4, 'Add a reason for declining'),
+  }).parse(req.body)
+  found(res, await rejectApplication(hospitalId(req), req.params.applicationId, body.reason), 'application', 'Application not found')
+}))
+
+hospitalRouter.post('/applications/:applicationId/request-documents', asyncHandler(async (req, res) => {
+  const body = z.object({
+    code: z.string().min(2),
+    dueBy: z.string().min(8, 'Choose a due date'),
+    label: z.string().trim().max(80).optional(),
+  }).parse(req.body)
+  found(res, await requestDocuments(hospitalId(req), req.params.applicationId, body.code, body.dueBy, body.label), 'application', 'Application not found')
 }))
 
 hospitalRouter.get('/hospital/shifts', asyncHandler(async (req, res) => {
@@ -167,8 +190,20 @@ hospitalRouter.get('/hospital/workers/:workerId', asyncHandler(async (req, res) 
   found(res, await getWorker(hospitalId(req), req.params.workerId), 'worker', 'Worker not found')
 }))
 
-hospitalRouter.get('/hospital/workers/:workerId/documents', asyncHandler(async (_req, res) => {
-  res.status(403).json({ message: 'Credential documents stay with admin review and are not available in the hospital portal.' })
+hospitalRouter.get('/hospital/workers/:workerId/documents', asyncHandler(async (req, res) => {
+  const person = await getWorker(hospitalId(req), req.params.workerId)
+  if (!person) {
+    res.status(404).json({ message: 'Worker not found' })
+    return
+  }
+  res.json({
+    documents: {
+      qualifications: person.qualifications || [],
+      certifications: person.certifications || [],
+      skills: person.skills || [],
+      credentialExpiry: person.credentialExpiry || '',
+    },
+  })
 }))
 
 hospitalRouter.get('/hospital/subscription', asyncHandler(async (req, res) => {

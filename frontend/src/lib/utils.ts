@@ -6,9 +6,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function errorMessage(error: unknown, fallback = 'Something went wrong') {
+export function isConnectionError(error: unknown) {
+  if (!axios.isAxiosError(error)) return false
+  return !error.response || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED' || error.code === 'ERR_CANCELED'
+}
+
+export function errorMessage(error: unknown, fallback = 'Something went wrong. Please try again.') {
   if (axios.isAxiosError(error)) {
-    return (error.response?.data as { message?: string } | undefined)?.message || (error.code === 'ERR_NETWORK' ? 'Cannot reach the hospital API' : fallback)
+    const fromServer = (error.response?.data as { message?: string } | undefined)?.message
+    if (fromServer) return fromServer
+    if (isConnectionError(error)) return 'We couldn’t connect. Please try again.'
   }
   return fallback
 }
@@ -97,8 +104,9 @@ export const STATUS_LABEL: Record<string, string> = {
   cancelled: 'Cancelled',
   filled: 'Filled',
   under_review: 'To review',
+  needs_update: 'Needs update',
   shortlisted: 'Shortlisted',
-  offered: 'Offered',
+  offered: 'Selected',
   confirmed: 'Confirmed',
   upcoming: 'Coming',
   active: 'Now',

@@ -150,7 +150,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader
               title="Your requests"
-              description={pending.length ? `${pending.length} waiting for admin` : 'Open requests'}
+              description={pending.length ? `${pending.length} still waiting` : 'Open requests'}
               action={<Link to="/find" className="shrink-0 text-sm font-semibold text-action hover:text-navy">All</Link>}
             />
             {jobItems.filter((job) => job.status !== 'cancelled').length === 0 ? (

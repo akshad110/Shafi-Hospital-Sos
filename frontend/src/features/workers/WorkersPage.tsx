@@ -103,7 +103,8 @@ function WorkerDetail({ id }: { id: string }) {
       <dl className="mt-4 divide-y divide-line rounded-xl border border-line text-sm">
         <div className="flex justify-between gap-3 px-3.5 py-2.5"><dt className="text-muted">Experience</dt><dd className="font-medium text-ink">{person.experience}</dd></div>
         <div className="flex justify-between gap-3 px-3.5 py-2.5"><dt className="text-muted">Availability</dt><dd className="font-medium text-ink">{person.availability}</dd></div>
-        <div className="flex justify-between gap-3 px-3.5 py-2.5"><dt className="text-muted">Qualifications</dt><dd className="text-right font-medium text-ink">{person.qualifications.join(', ')}</dd></div>
+        <div className="flex justify-between gap-3 px-3.5 py-2.5"><dt className="text-muted">Qualifications</dt><dd className="text-right font-medium text-ink">{person.qualifications.join(', ') || '—'}</dd></div>
+        <div className="flex justify-between gap-3 px-3.5 py-2.5"><dt className="text-muted">Certificates</dt><dd className="text-right font-medium text-ink">{(person.certifications || []).join(', ') || '—'}</dd></div>
         <div className="flex justify-between gap-3 px-3.5 py-2.5"><dt className="text-muted">Credential expiry</dt><dd className={cn('font-medium', expiring ? 'text-[#c42a2a]' : 'text-ink')}>{dateOnly(person.credentialExpiry)}</dd></div>
         {person.phone && <div className="flex justify-between gap-3 px-3.5 py-2.5"><dt className="text-muted">Phone</dt><dd className="font-medium text-ink"><a href={`tel:${person.phone.replace(/\s/g, '')}`} className="hover:text-brand-deep">{person.phone}</a></dd></div>}
         {person.payoutAccount && (
