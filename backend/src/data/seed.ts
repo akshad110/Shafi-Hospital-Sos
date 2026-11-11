@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { TRIAL, trialWindow } from '../billing.js'
+import { PLAN_MONTHLY, TRIAL, trialWindow } from '../billing.js'
 import { CATALOG_SEED } from '../catalog.js'
 import { presentDayPay, resolvePayRules } from '../lib/payRules.js'
 import { shiftHours, ymd } from '../lib/util.js'
@@ -104,7 +104,18 @@ function contractShifts({ contract, supervisor, marks, startTime, endTime }: Shi
 }
 
 function jobWithPay(job: Job): Job {
-  return { ...job, payRules: resolvePayRules(undefined, presentDayPay(job.amount, job.paymentUnit, job.paymentUnit === 'hourly' ? 8 : 12)) }
+  const requiredDocuments = job.requiredDocuments?.length
+    ? job.requiredDocuments
+    : (job.certifications || []).map((name, index) => ({
+        id: `${job.id}-rd-${index + 1}`,
+        name,
+        instruction: 'Upload an original photo or PDF of this document.',
+      }))
+  return {
+    ...job,
+    requiredDocuments,
+    payRules: resolvePayRules(undefined, presentDayPay(job.amount, job.paymentUnit, job.paymentUnit === 'hourly' ? 8 : 12)),
+  }
 }
 
 function contractWithPay(contract: Contract): Contract {
@@ -141,9 +152,9 @@ export function createSeed() {
   ]
 
   const plans: Plan[] = [
-    { code: 'starter', name: 'Starter', months: 1, price: 1999, currency: 'INR', locations: 1, activeRequests: 5, features: ['One hospital location', 'Five active staffing requests', 'Application tracking', 'Email notifications'] },
-    { code: 'professional', name: 'Professional', months: 6, price: 26995, currency: 'INR', locations: 3, activeRequests: 20, features: ['Three locations', 'Twenty active staffing requests', 'Shift attendance records', 'Priority support'], popular: true },
-    { code: 'enterprise', name: 'Enterprise', months: 12, price: 95990, currency: 'INR', locations: 10, activeRequests: 50, features: ['Ten locations', 'Fifty active staffing requests', 'Dedicated support manager', 'Advanced workforce directory'] },
+    { code: 'starter', name: 'Starter', months: 1, price: PLAN_MONTHLY.starter, currency: 'INR', locations: 1, activeRequests: 5, features: ['One hospital location', 'Five active staffing requests', 'Application tracking', 'Email notifications'] },
+    { code: 'professional', name: 'Professional', months: 6, price: PLAN_MONTHLY.professional * 6, currency: 'INR', locations: 3, activeRequests: 20, features: ['Three locations', 'Twenty active staffing requests', 'Shift attendance records', 'Priority support'], popular: true },
+    { code: 'enterprise', name: 'Enterprise', months: 12, price: PLAN_MONTHLY.enterprise * 12, currency: 'INR', locations: 10, activeRequests: 50, features: ['Ten locations', 'Fifty active staffing requests', 'Dedicated support manager', 'Advanced workforce directory'] },
   ]
 
   const subscriptions: Subscription[] = [
@@ -151,10 +162,10 @@ export function createSeed() {
   ]
 
   const workers: Worker[] = [
-    { id: 'w-ananya', hospitalId: HOSPITAL, name: 'Ananya Deshpande', phone: '+91 98220 11021', role: 'ICU Nurse', qualifications: ['B.Sc Nursing'], certifications: ['RN license', 'ACLS'], skills: ['Ventilator care', 'Hemodynamic monitoring'], experience: '6 years', verified: true, city: 'Pune', credentialExpiry: day(40), availability: 'Days', payoutAccount: { method: 'bank_transfer', bankName: 'HDFC Bank', accountLast4: '4521', ifsc: 'HDFC0001234' } },
-    { id: 'w-rahul', hospitalId: HOSPITAL, name: 'Rahul Mehta', phone: '+91 98500 44310', role: 'ER Nurse', qualifications: ['GNM'], certifications: ['BLS'], skills: ['Triage', 'Trauma bay'], experience: '4 years', verified: true, city: 'Pune', credentialExpiry: day(120), availability: 'Nights', payoutAccount: { method: 'upi', upiId: 'rahul.mehta@okicici' } },
-    { id: 'w-priya', hospitalId: HOSPITAL, name: 'Priya Shah', phone: '+91 99230 77812', role: 'Lab Technician', qualifications: ['DMLT'], certifications: [], skills: ['Hematology', 'Sample accession'], experience: '3 years', verified: false, city: 'Pune', credentialExpiry: day(18), availability: 'Rotating', payoutAccount: { method: 'upi', upiId: 'priyashah@oksbi' } },
-    { id: 'w-joseph', hospitalId: HOSPITAL, name: "Joseph D'Souza", phone: '+91 97300 55890', role: 'Caregiver', qualifications: ['Caregiver certificate'], certifications: ['Caregiver certificate'], skills: ['Ward support', 'Patient mobility'], experience: '5 years', verified: true, city: 'Pune', credentialExpiry: day(200), availability: 'Days', payoutAccount: { method: 'bank_transfer', bankName: 'State Bank of India', accountLast4: '8830', ifsc: 'SBIN0004512' } },
+    { id: 'w-ananya', hospitalId: HOSPITAL, name: 'Ananya Deshpande', phone: '+91 98220 11021', role: 'ICU Nurse', qualifications: ['B.Sc Nursing'], certifications: ['RN license', 'ACLS'], skills: ['Ventilator care', 'Hemodynamic monitoring'], experience: '6 years', verified: true, city: 'Pune', credentialExpiry: day(40), availability: 'Days', payoutAccount: { method: 'bank_transfer', bankName: 'HDFC Bank', accountLast4: '4521', ifsc: 'HDFC0001234' }, documents: [{ id: 'd-ananya-rn', name: 'RN license', kind: 'certification', fileName: 'rn-license.pdf' }, { id: 'd-ananya-acls', name: 'ACLS', kind: 'certification', fileName: 'acls.pdf' }, { id: 'd-ananya-bsc', name: 'B.Sc Nursing', kind: 'qualification', fileName: 'bsc-nursing.pdf' }] },
+    { id: 'w-rahul', hospitalId: HOSPITAL, name: 'Rahul Mehta', phone: '+91 98500 44310', role: 'ER Nurse', qualifications: ['GNM'], certifications: ['BLS'], skills: ['Triage', 'Trauma bay'], experience: '4 years', verified: true, city: 'Pune', credentialExpiry: day(120), availability: 'Nights', payoutAccount: { method: 'upi', upiId: 'rahul.mehta@okicici' }, documents: [{ id: 'd-rahul-gnm', name: 'GNM', kind: 'qualification', fileName: 'gnm.pdf' }, { id: 'd-rahul-bls', name: 'BLS', kind: 'certification', fileName: 'bls.pdf' }] },
+    { id: 'w-priya', hospitalId: HOSPITAL, name: 'Priya Shah', phone: '+91 99230 77812', role: 'Lab Technician', qualifications: ['DMLT'], certifications: [], skills: ['Hematology', 'Sample accession'], experience: '3 years', verified: false, city: 'Pune', credentialExpiry: day(18), availability: 'Rotating', payoutAccount: { method: 'upi', upiId: 'priyashah@oksbi' }, documents: [{ id: 'd-priya-dmlt', name: 'DMLT', kind: 'qualification', fileName: 'dmlt.pdf' }] },
+    { id: 'w-joseph', hospitalId: HOSPITAL, name: "Joseph D'Souza", phone: '+91 97300 55890', role: 'Caregiver', qualifications: ['Caregiver certificate'], certifications: ['Caregiver certificate'], skills: ['Ward support', 'Patient mobility'], experience: '5 years', verified: true, city: 'Pune', credentialExpiry: day(200), availability: 'Days', payoutAccount: { method: 'bank_transfer', bankName: 'State Bank of India', accountLast4: '8830', ifsc: 'SBIN0004512' }, documents: [{ id: 'd-joseph-care', name: 'Caregiver certificate', kind: 'certification', fileName: 'caregiver.pdf' }] },
   ]
 
   const jobs: Job[] = [
@@ -165,10 +176,10 @@ export function createSeed() {
   ]
 
   const applications: Application[] = [
-    { id: 'a-ananya', hospitalId: HOSPITAL, jobId: 'j-icu', workerId: 'w-ananya', status: 'confirmed', appliedAt: at(-4, 12).toISOString(), timeline: [{ status: 'under_review', at: at(-4, 12).toISOString(), note: 'Application received' }, { status: 'shortlisted', at: at(-4, 15).toISOString(), note: 'Credentials matched the ICU brief' }, { status: 'offered', at: at(-4, 17).toISOString(), note: 'Hospital selected this worker' }, { status: 'confirmed', at: at(-4, 19).toISOString(), note: 'Hospital confirmed a 7-day contract' }], notes: [], messages: [] },
-    { id: 'a-rahul', hospitalId: HOSPITAL, jobId: 'j-er', workerId: 'w-rahul', status: 'shortlisted', appliedAt: at(-1, 9).toISOString(), timeline: [{ status: 'under_review', at: at(-1, 9).toISOString(), note: 'Application received' }, { status: 'shortlisted', at: at(-1, 17).toISOString(), note: 'Hospital shortlisted this worker' }], notes: [], messages: [] },
-    { id: 'a-priya', hospitalId: HOSPITAL, jobId: 'j-lab', workerId: 'w-priya', status: 'under_review', appliedAt: at(0, 9, 30).toISOString(), timeline: [{ status: 'under_review', at: at(0, 9, 30).toISOString(), note: 'Application received' }], notes: [], messages: [] },
-    { id: 'a-joseph', hospitalId: HOSPITAL, jobId: 'j-care', workerId: 'w-joseph', status: 'offered', appliedAt: at(-3, 11).toISOString(), timeline: [{ status: 'under_review', at: at(-3, 11).toISOString(), note: 'Application received' }, { status: 'offered', at: at(-2, 13).toISOString(), note: 'Hospital selected this worker' }], notes: [], messages: [] },
+    { id: 'a-ananya', hospitalId: HOSPITAL, jobId: 'j-icu', workerId: 'w-ananya', status: 'confirmed', appliedAt: at(-4, 12).toISOString(), timeline: [{ status: 'under_review', at: at(-4, 12).toISOString(), note: 'Application received' }, { status: 'shortlisted', at: at(-4, 15).toISOString(), note: 'Credentials matched the ICU brief' }, { status: 'offered', at: at(-4, 17).toISOString(), note: 'Hospital selected this worker' }, { status: 'confirmed', at: at(-4, 19).toISOString(), note: 'Hospital confirmed a 7-day contract' }], notes: [], messages: [], documentReviews: [] },
+    { id: 'a-rahul', hospitalId: HOSPITAL, jobId: 'j-er', workerId: 'w-rahul', status: 'shortlisted', appliedAt: at(-1, 9).toISOString(), timeline: [{ status: 'under_review', at: at(-1, 9).toISOString(), note: 'Application received' }, { status: 'shortlisted', at: at(-1, 17).toISOString(), note: 'Hospital shortlisted this worker' }], notes: [], messages: [], documentReviews: [] },
+    { id: 'a-priya', hospitalId: HOSPITAL, jobId: 'j-lab', workerId: 'w-priya', status: 'under_review', appliedAt: at(0, 9, 30).toISOString(), timeline: [{ status: 'under_review', at: at(0, 9, 30).toISOString(), note: 'Application received' }], notes: [], messages: [], documentReviews: [] },
+    { id: 'a-joseph', hospitalId: HOSPITAL, jobId: 'j-care', workerId: 'w-joseph', status: 'offered', appliedAt: at(-3, 11).toISOString(), timeline: [{ status: 'under_review', at: at(-3, 11).toISOString(), note: 'Application received' }, { status: 'offered', at: at(-2, 13).toISOString(), note: 'Hospital selected this worker' }], notes: [], messages: [], documentReviews: [] },
   ]
 
   const contracts: Contract[] = [

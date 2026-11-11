@@ -15,6 +15,10 @@ function periodLabel(months: number) {
   return months === 1 ? '1 month' : `${months} months`
 }
 
+function monthlyRate(plan: Plan) {
+  return plan.months > 1 ? Math.round(plan.price / plan.months) : plan.price
+}
+
 function addMonths(months: number) {
   const date = new Date()
   date.setMonth(date.getMonth() + months)
@@ -94,11 +98,11 @@ export default function SubscriptionPage() {
                 </div>
                 <p className="mt-3 inline-flex w-fit items-center rounded-md bg-canvas px-2 py-0.5 text-xs font-semibold text-navy ring-1 ring-inset ring-line">{period}</p>
                 <p className="mt-3 flex items-baseline gap-1.5">
-                  <span className="text-[26px] font-semibold leading-none tracking-tight text-ink sm:text-[32px]">{money(plan.price)}</span>
-                  <span className="text-sm text-muted">/ {period}</span>
+                  <span className="text-[26px] font-semibold leading-none tracking-tight text-ink sm:text-[32px]">{money(monthlyRate(plan))}</span>
+                  <span className="text-sm text-muted">/ month</span>
                 </p>
                 <p className="mt-1.5 text-sm text-muted">
-                  {plan.months > 1 ? `${money(Math.round(plan.price / plan.months))}/month · billed once for ${period}` : 'Billed monthly'}
+                  {plan.months > 1 ? `${money(plan.price)} billed once for ${period}` : 'Billed monthly'}
                 </p>
 
                 <div className="my-5 h-px bg-line" />
@@ -145,7 +149,8 @@ export default function SubscriptionPage() {
               <SummaryRow label="Valid until" value={dateOnly(addMonths(pick.months))} />
               <SummaryRow label="Active requests" value={`Up to ${pick.activeRequests}`} />
               <SummaryRow label="Locations" value={`Up to ${pick.locations}`} />
-              <SummaryRow label="Amount" value={money(pick.price)} strong />
+              <SummaryRow label="Per month" value={money(monthlyRate(pick))} />
+              <SummaryRow label="Amount billed" value={money(pick.price)} strong />
             </dl>
             <p className="mt-3 rounded-xl bg-warn-soft px-3 py-2.5 text-xs leading-5 text-[#7a4a00]">
               Online payment is not connected yet. The amount is added to billing history as payment due.

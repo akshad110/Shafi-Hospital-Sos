@@ -1,19 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Check, CircleAlert } from 'lucide-react'
+import { BadgeCheck, Check, ChevronLeft, ChevronRight, CircleAlert, FileText } from 'lucide-react'
 import {
   application,
   applications,
   confirmApplication,
   rejectApplication,
   requestApplicationDocuments,
+  reviewApplicationDocument,
 } from '../../services/api'
 import { cn, dayLabel, errorMessage, initials, money, STATUS_LABEL, unitLabel, when } from '../../lib/utils'
 import { useCatalog } from '../../hooks/useCatalog'
 import { useDebounced } from '../../hooks/useDebounced'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
-import type { Application } from '../../types/domain'
+import type { Application, WorkerDocument } from '../../types/domain'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card, rowClass } from '../../components/ui/Card'
@@ -33,6 +34,16 @@ const DECLINE_REASONS = [
   'This position has already been filled',
   'Shift timing does not work',
   'Other',
+]
+
+const FALLBACK_REJECT = [
+  { code: 'blurry', label: 'Unreadable or blurry' },
+  { code: 'expired', label: 'Expired' },
+  { code: 'name', label: 'Name does not match' },
+  { code: 'wrong', label: 'Wrong document' },
+  { code: 'incomplete', label: 'Incomplete or cut off' },
+  { code: 'invalid', label: 'Looks invalid' },
+  { code: 'other', label: 'Other' },
 ]
 
 const FALLBACK_REQUESTS = [
@@ -94,8 +105,9 @@ export default function ApplicationsPage() {
         </div>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <Card className="min-w-0 overflow-hidden">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-6">
+        <Card className="overflow-hidden">
           {query.isLoading && <div className="space-y-3 p-4">{[0, 1, 2].map((key) => <Skeleton key={key} className="h-14" />)}</div>}
           {query.isError && <div className="p-4"><ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} /></div>}
           {query.data && items.length === 0 && <EmptyState title="No applications yet" body="People show up here after they apply to your request." />}
@@ -169,8 +181,10 @@ export default function ApplicationsPage() {
             </>
           )}
         </Card>
+        {wide && activeId && <ApplicationTimelineCard id={activeId} />}
+        </div>
 
-        {wide && activeId && <aside className="sticky top-24 self-start"><Card className="p-5"><ApplicationDetail id={activeId} /></Card></aside>}
+        {wide && activeId && <aside className="sticky top-24 self-start"><Card className="p-5"><ApplicationDetail id={activeId} hideTimeline /></Card></aside>}
       </div>
 
       {!wide && (
@@ -182,16 +196,21 @@ export default function ApplicationsPage() {
   )
 }
 
-function ApplicationDetail({ id }: { id: string }) {
+function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimeline?: boolean }) {
   const queryClient = useQueryClient()
-  const { documentRequests } = useCatalog()
+  const { documentRequests, documentRejectReasons } = useCatalog()
   const templates = documentRequests.length ? documentRequests : FALLBACK_REQUESTS
+  const rejectReasons = documentRejectReasons?.length ? documentRejectReasons : FALLBACK_REJECT
   const [panel, setPanel] = useState<'ask' | 'decline' | 'confirm' | null>(null)
   const [code, setCode] = useState(templates[0]?.code || 'license')
   const [customDoc, setCustomDoc] = useState('')
   const [dueBy, setDueBy] = useState(plusDays(2))
   const [declineReason, setDeclineReason] = useState(DECLINE_REASONS[0])
   const [declineOther, setDeclineOther] = useState('')
+  const [viewing, setViewing] = useState<string | null>(null)
+  const [rejecting, setRejecting] = useState(false)
+  const [rejectCode, setRejectCode] = useState(FALLBACK_REJECT[0].code)
+  const [rejectOther, setRejectOther] = useState('')
   const query = useQuery({ queryKey: ['application', id], queryFn: () => application(id) })
 
   function refresh() {
@@ -216,15 +235,23 @@ function ApplicationDetail({ id }: { id: string }) {
     mutationFn: () => requestApplicationDocuments(id, { code, dueBy, label: code === 'other' ? customDoc.trim() : undefined }),
     onSuccess: () => { setPanel(null); setCustomDoc(''); return refresh() },
   })
+  const reviewDoc = useMutation({
+    mutationFn: (body: { label: string; status: 'verified' | 'rejected'; reasonCode?: string; reason?: string }) => reviewApplicationDocument(id, body),
+    onSuccess: () => { setRejecting(false); setRejectOther(''); setViewing(null); return refresh() },
+  })
 
   if (query.isLoading) return <div className="space-y-3"><Skeleton className="h-12" /><Skeleton className="h-32" /></div>
   if (query.isError || !query.data) return <ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} />
   const item = query.data
   const checks = requirementChecks(item)
+  const listed = new Set(checks.map((entry) => entry.label.toLowerCase()))
+  const extraDocs = (item.documents || []).filter((doc) => !listed.has(doc.name.toLowerCase()) && !checks.some((entry) => covered([doc.name], entry.label)))
+  const certRows = [...checks, ...extraDocs.map((doc) => ({ label: doc.name, ok: true }))]
   const missing = checks.filter((entry) => !entry.ok)
   const busy = confirm.isPending || decline.isPending
   const open = OPEN.has(item.status)
-  const actionError = confirm.error || decline.error || requestDocs.error
+  const actionError = confirm.error || decline.error || requestDocs.error || reviewDoc.error
+  const reviews = item.documentReviews || []
   const declineNote = declineReason === 'Other' ? declineOther.trim() : declineReason
   const template = templates.find((entry) => entry.code === code)
   const customName = customDoc.trim() || 'document'
@@ -251,16 +278,84 @@ function ApplicationDetail({ id }: { id: string }) {
       </dl>
 
       <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Certificates</h3>
-      <ul className="mt-2 space-y-1.5">
-        {checks.map((entry) => (
-          <li key={entry.label} className="flex items-start gap-2 text-sm">
-            {entry.ok
-              ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
-              : <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />}
-            <span className={entry.ok ? 'text-ink' : 'font-medium text-ink'}>{entry.label}</span>
-            <span className="ml-auto text-[11px] text-muted">{entry.ok ? 'On file' : 'Missing'}</span>
-          </li>
-        ))}
+      <ul className="mt-2 space-y-2">
+        {certRows.map((entry) => {
+          const review = reviews.find((item) => item.label.toLowerCase() === entry.label.toLowerCase())
+          const uploaded = findUploaded(item, entry.label)
+          const openView = viewing === entry.label
+          return (
+            <li key={entry.label} className="rounded-xl border border-line px-3 py-2.5">
+              <div className="flex items-start gap-2 text-sm">
+                {review?.status === 'verified' || (entry.ok && review?.status !== 'rejected')
+                  ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+                  : <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" />}
+                <span className="min-w-0 flex-1 font-medium text-ink">{entry.label}</span>
+                {entry.ok
+                  ? (
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs font-semibold text-action hover:text-navy"
+                      onClick={() => { setViewing(openView ? null : entry.label); setRejecting(false); setRejectOther('') }}
+                    >
+                      {openView ? 'Close' : 'View'}
+                    </button>
+                  )
+                  : <span className="shrink-0 text-[11px] text-muted">Missing</span>}
+              </div>
+              {review?.status === 'verified' && !openView && <p className="mt-1 pl-6 text-xs text-success">Verified</p>}
+              {review?.status === 'rejected' && !openView && (
+                <div className="mt-1 pl-6">
+                  <p className="text-xs font-medium text-danger">Not verified</p>
+                  {review.reason && <p className="text-xs leading-5 text-muted">{review.reason}</p>}
+                </div>
+              )}
+              {!review && entry.ok && !openView && <p className="mt-1 pl-6 text-[11px] text-muted">On file · not reviewed</p>}
+              {openView && (
+                <div className="mt-3">
+                  <DocumentPreview name={entry.label} workerName={item.workerName} role={item.role} expiry={item.credentialExpiry} fileName={uploaded?.fileName} url={uploaded?.url} />
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Button variant="danger" size="sm" disabled={reviewDoc.isPending} onClick={() => setRejecting(true)}>Not verified</Button>
+                    <Button size="sm" disabled={reviewDoc.isPending} onClick={() => reviewDoc.mutate({ label: entry.label, status: 'verified' })}>
+                      {reviewDoc.isPending && !rejecting ? 'Saving…' : 'Verified'}
+                    </Button>
+                  </div>
+                  {rejecting && (
+                    <div className="mt-3 rounded-xl bg-danger-soft/50 p-3">
+                      <Field label="Reason">
+                        <Select value={rejectCode} onChange={(event) => setRejectCode(event.target.value)}>
+                          {rejectReasons.map((reason) => <option key={reason.code} value={reason.code}>{reason.label}</option>)}
+                        </Select>
+                      </Field>
+                      {rejectCode === 'other' && (
+                        <div className="mt-3">
+                          <Field label="Tell them why">
+                            <TextArea rows={2} value={rejectOther} onChange={(event) => setRejectOther(event.target.value)} placeholder="Write a short reason" />
+                          </Field>
+                        </div>
+                      )}
+                      <div className="mt-3 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setRejecting(false)}>Go back</Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          disabled={reviewDoc.isPending || (rejectCode === 'other' && rejectOther.trim().length < 4)}
+                          onClick={() => reviewDoc.mutate({
+                            label: entry.label,
+                            status: 'rejected',
+                            reasonCode: rejectCode,
+                            reason: rejectCode === 'other' ? rejectOther.trim() : undefined,
+                          })}
+                        >
+                          {reviewDoc.isPending ? 'Saving…' : 'Send to worker'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </li>
+          )
+        })}
       </ul>
       {item.credentialExpiry && (
         <p className="mt-2 text-xs text-muted">Credentials expire {dayLabel(item.credentialExpiry)}</p>
@@ -347,25 +442,7 @@ function ApplicationDetail({ id }: { id: string }) {
       )}
       {actionError && <p className="mt-2 text-xs text-danger">{errorMessage(actionError)}</p>}
 
-      <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Timeline</h3>
-      <ol className="mt-1">
-        {item.timeline.map((event, index) => {
-          const last = index === item.timeline.length - 1
-          return (
-            <li key={`${event.at}-${event.status}-${index}`} className="relative flex gap-3 py-2">
-              {index < item.timeline.length - 1 && <span className="absolute left-[5px] top-5 h-[calc(100%-8px)] w-px bg-line" />}
-              <span className={cn('relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ring-4 ring-white', last ? 'bg-brand' : 'bg-line-strong')} />
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-semibold text-ink">{STATUS_LABEL[event.status] || event.status}</p>
-                <p className="text-xs leading-5 text-muted">
-                  {event.note || STATUS_LABEL[event.status] || event.status}
-                  <span className="text-faint"> · {when(event.at)}</span>
-                </p>
-              </div>
-            </li>
-          )
-        })}
-      </ol>
+      {!hideTimeline && <div className="mt-5"><ApplicationTimeline events={item.timeline} status={item.status} /></div>}
 
       {messages.length > 0 && (
         <>
@@ -384,6 +461,124 @@ function ApplicationDetail({ id }: { id: string }) {
   )
 }
 
+function ApplicationTimelineCard({ id }: { id: string }) {
+  const query = useQuery({ queryKey: ['application', id], queryFn: () => application(id) })
+  if (query.isLoading) {
+    return <Card className="p-5"><Skeleton className="h-24" /></Card>
+  }
+  if (query.isError || !query.data) return null
+  return (
+    <Card className="p-4 md:p-5">
+      <ApplicationTimeline events={query.data.timeline} status={query.data.status} />
+    </Card>
+  )
+}
+
+function ApplicationTimeline({ events, status }: { events: { status: string; at: string; note: string }[]; status: string }) {
+  const scroller = useRef<HTMLDivElement>(null)
+  const [canLeft, setCanLeft] = useState(false)
+  const [canRight, setCanRight] = useState(false)
+  const steps = timelineSteps(events, status)
+
+  function updateArrows() {
+    const el = scroller.current
+    if (!el) return
+    setCanLeft(el.scrollLeft > 8)
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 8)
+  }
+
+  useEffect(() => {
+    const el = scroller.current
+    if (!el) return
+    updateArrows()
+    el.addEventListener('scroll', updateArrows, { passive: true })
+    const observer = new ResizeObserver(updateArrows)
+    observer.observe(el)
+    return () => {
+      el.removeEventListener('scroll', updateArrows)
+      observer.disconnect()
+    }
+  }, [steps])
+
+  function slide(direction: -1 | 1) {
+    scroller.current?.scrollBy({ left: direction * 220, behavior: 'smooth' })
+  }
+
+  if (!steps.length) return null
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Timeline</h3>
+      <div className="mt-3 flex items-start gap-1.5">
+        <button
+          type="button"
+          aria-label="Earlier events"
+          disabled={!canLeft}
+          onClick={() => slide(-1)}
+          className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line bg-white text-ink shadow-sm disabled:opacity-30"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <ol ref={scroller} className="no-scrollbar flex min-w-0 flex-1 overflow-x-auto overscroll-x-contain scroll-smooth pb-1">
+          {steps.map((step, index) => {
+            const last = index === steps.length - 1
+            const tone = TIMELINE_TONE[step.tone]
+            return (
+              <li key={`${step.at}-${step.status}-${index}`} className="relative flex min-w-[148px] max-w-[200px] flex-1 shrink-0 flex-col pr-4">
+                <div className="flex items-center">
+                  <span className={cn('relative z-[1] h-2.5 w-2.5 shrink-0 rounded-full', tone.dot)} />
+                  {!last && <span className={cn('h-px min-w-0 flex-1', tone.line)} />}
+                </div>
+                <p className={cn('mt-2 text-[13px] font-semibold', tone.title)}>{STATUS_LABEL[step.status] || step.status}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted">{step.note || STATUS_LABEL[step.status] || step.status}</p>
+                {step.at ? <p className="mt-1 text-[11px] text-faint">{when(step.at)}</p> : <p className="mt-1 text-[11px] text-faint">Not done</p>}
+              </li>
+            )
+          })}
+        </ol>
+        <button
+          type="button"
+          aria-label="Later events"
+          disabled={!canRight}
+          onClick={() => slide(1)}
+          className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line bg-white text-ink shadow-sm disabled:opacity-30"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const OPEN_STEPS = new Set(['under_review', 'needs_update', 'shortlisted', 'offered'])
+
+const TIMELINE_TONE = {
+  done: { dot: 'bg-success', line: 'bg-success/40', title: 'text-[#05603a]' },
+  progress: { dot: 'bg-warn', line: 'bg-warn/40', title: 'text-[#8f5300]' },
+  pending: { dot: 'bg-danger', line: 'bg-danger/30', title: 'text-danger' },
+}
+
+function timelineFailed(event: { status: string; note: string }) {
+  return event.status === 'rejected' || /not verified/i.test(event.note || '')
+}
+
+function timelineSteps(events: { status: string; at: string; note: string }[], status: string) {
+  const items = events.map((event, index) => {
+    const last = index === events.length - 1
+    const failed = timelineFailed(event)
+    const tone = failed
+      ? 'pending' as const
+      : last && OPEN_STEPS.has(status)
+        ? 'progress' as const
+        : 'done' as const
+    return { ...event, tone }
+  })
+  if (status !== 'confirmed' && status !== 'rejected') {
+    items.push({ status: 'confirmed', at: '', note: 'Hire not confirmed yet', tone: 'pending' })
+  }
+  return items
+}
+
 function plusDays(days: number) {
   const date = new Date()
   date.setDate(date.getDate() + days)
@@ -399,9 +594,16 @@ function covered(have: string[], need: string) {
 }
 
 function requirementChecks(item: Application) {
-  const have = [...item.qualifications, ...item.certifications, ...item.skills]
-  const needed = [...(item.jobQualifications || []), ...(item.jobCertifications || []), ...(item.jobSkills || [])]
-  const unique = [...new Set(needed.filter(Boolean))]
+  const have = [
+    ...item.qualifications,
+    ...item.certifications,
+    ...item.skills,
+    ...(item.documents || []).map((doc) => doc.name),
+    ...(item.uploads || []).map((doc) => doc.name),
+  ]
+  const needed = (item.requiredDocuments || []).map((doc) => doc.name)
+  const fallback = [...(item.jobQualifications || []), ...(item.jobCertifications || []), ...(item.jobSkills || [])]
+  const unique = [...new Set((needed.length ? needed : fallback).filter(Boolean))]
   if (unique.length === 0) {
     return have.slice(0, 6).map((label) => ({ label, ok: true }))
   }
@@ -412,4 +614,53 @@ function suggestedCode(missing: { label: string }[], templates: { code: string; 
   const blob = missing.map((entry) => entry.label.toLowerCase()).join(' ')
   const hit = templates.find((entry) => blob.includes(entry.code) || blob.includes(entry.label.toLowerCase().split(/[\s/]/)[0]))
   return hit?.code || templates[0]?.code || 'license'
+}
+
+function findUploaded(item: Application, label: string): WorkerDocument | undefined {
+  const required = (item.requiredDocuments || []).find((doc) => doc.name.toLowerCase() === label.toLowerCase())
+  const fromUpload = (item.uploads || []).find((doc) => {
+    const matchName = covered([doc.name], label) || covered([label], doc.name)
+    const matchId = required && (doc.documentId === required.id || doc.id === required.id)
+    return matchName || Boolean(matchId)
+  })
+  if (fromUpload) return fromUpload
+  return (item.documents || []).find((doc) => covered([doc.name], label) || covered([label], doc.name))
+}
+
+function DocumentPreview({
+  name,
+  workerName,
+  role,
+  expiry,
+  fileName,
+  url,
+}: {
+  name: string
+  workerName: string
+  role: string
+  expiry?: string
+  fileName?: string
+  url?: string
+}) {
+  const image = url && /\.(png|jpe?g|webp|gif)$/i.test(url)
+  return (
+    <div className="overflow-hidden rounded-xl border border-line bg-canvas">
+      {url && image && <img src={url} alt={name} className="max-h-56 w-full object-contain bg-white" />}
+      {url && !image && (
+        <a href={url} target="_blank" rel="noreferrer" className="block px-3 py-2.5 text-sm font-semibold text-action hover:text-navy">
+          Open original file
+        </a>
+      )}
+      <div className="flex items-start gap-3 px-3 py-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-navy ring-1 ring-line">
+          <FileText className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-ink">{name}</p>
+          <p className="text-xs text-muted">{workerName} · {role}</p>
+          <p className="text-[11px] text-faint">{fileName || 'Uploaded at registration'}{expiry ? ` · expires ${dayLabel(expiry)}` : ''}</p>
+        </div>
+      </div>
+    </div>
+  )
 }

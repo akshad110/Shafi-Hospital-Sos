@@ -57,6 +57,11 @@ export async function createJob(hospitalId: string, input: JobInput) {
     ...input,
     department: input.department.trim(),
     role: input.role.trim(),
+    requiredDocuments: (input.requiredDocuments || []).map((item) => ({
+      id: item.id,
+      name: item.name.trim(),
+      instruction: item.instruction?.trim() || 'Upload an original photo or PDF of this document.',
+    })),
     payRules: resolvePayRules(input.payRules, presentDayPay(input.amount, input.paymentUnit)),
     status,
     id: uid(),

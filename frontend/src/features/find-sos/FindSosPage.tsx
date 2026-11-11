@@ -200,6 +200,19 @@ function RequestDetail({ job, bare }: { job: Job; bare?: boolean }) {
         <Row label="Skills" value={job.skills.join(', ') || '—'} />
         <Row label="Experience" value={job.experience} />
       </dl>
+      {(job.requiredDocuments || []).length > 0 && (
+        <div className="mt-3 rounded-xl border border-line px-3.5 py-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Documents they must upload</p>
+          <ul className="mt-2 space-y-1.5">
+            {job.requiredDocuments!.map((item) => (
+              <li key={item.id} className="text-sm text-ink">
+                {item.name}
+                <span className="block text-xs text-muted">Original photo or PDF</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {job.notes && <p className="mt-3 rounded-xl bg-canvas px-3 py-2.5 text-xs leading-5 text-muted">{job.notes}</p>}
 
       {(cancel.isError || submit.isError) && <p className="mt-3 text-sm font-medium text-danger">{errorMessage(cancel.error || submit.error)}</p>}
@@ -267,6 +280,7 @@ function QuickSos({ open, onClose }: { open: boolean; onClose: () => void }) {
       experience: 'Relevant clinical experience',
       skills: form.skills.split(',').map((item) => item.trim()).filter(Boolean),
       certifications: [],
+      requiredDocuments: [],
       workersNeeded: Number(form.workersNeeded),
       date: form.date,
       startTime: form.startTime,

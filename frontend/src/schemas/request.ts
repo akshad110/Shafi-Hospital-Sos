@@ -36,6 +36,10 @@ export const requestSchema = z.object({
   experience: z.string().optional(),
   skills: z.string().optional(),
   certifications: z.string().optional(),
+  requiredDocuments: z.array(z.object({
+    id: z.string(),
+    name: z.string().trim().min(2).max(80),
+  })).default([]),
   workersNeeded: z.coerce.number().int().min(1, 'At least one worker').max(50),
   date: z.string().min(1, 'Choose a start date'),
   startTime: z.string().min(1, 'Choose when the shift starts'),

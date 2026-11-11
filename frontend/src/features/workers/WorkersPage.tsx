@@ -6,12 +6,15 @@ import { Link } from 'react-router-dom'
 import { cn, contractBadge, dateOnly, daysLeft, errorMessage, initials, money } from '../../lib/utils'
 import { useDebounced } from '../../hooks/useDebounced'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
+import type { Shift } from '../../types/domain'
 import { Badge } from '../../components/ui/Badge'
 import { Card, interactiveCard } from '../../components/ui/Card'
 import { SearchInput } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/States'
+
+const HISTORY_PREVIEW = 3
 
 export default function WorkersPage() {
   const wide = useMediaQuery('(min-width: 1024px)')
@@ -149,21 +152,59 @@ function WorkerDetail({ id }: { id: string }) {
         </ul>
       )}
 
-      <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Shift history</h3>
-      {person.shifts.length === 0 ? (
+      <ShiftHistory shifts={person.shifts} />
+    </div>
+  )
+}
+
+function ShiftHistory({ shifts }: { shifts: Shift[] }) {
+  const [all, setAll] = useState(false)
+
+  return (
+    <div>
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Shift history</h3>
+        {shifts.length > HISTORY_PREVIEW && (
+          <button type="button" onClick={() => setAll(true)} className="text-xs font-semibold text-brand-deep hover:underline">
+            View all
+          </button>
+        )}
+      </div>
+      {shifts.length === 0 ? (
         <p className="mt-2 text-sm text-muted">No shifts at this hospital yet.</p>
       ) : (
         <ul className="mt-2 divide-y divide-line">
-          {person.shifts.slice(0, 12).map((shift) => (
-            <li key={shift.id}>
-              <Link to={`/shifts?id=${shift.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm hover:text-brand-deep">
-                <span><span className="block font-medium text-ink">{shift.department}</span><span className="text-xs text-muted">{dateOnly(shift.date)} · {shift.startTime}–{shift.endTime}</span></span>
-                <Badge status={shift.attendance.status === 'pending' ? shift.status : shift.attendance.status} />
-              </Link>
-            </li>
+          {shifts.slice(0, HISTORY_PREVIEW).map((shift) => (
+            <ShiftHistoryRow key={shift.id} shift={shift} />
           ))}
         </ul>
       )}
+      <Modal
+        open={all}
+        title="Shift history"
+        description={`${shifts.length} shift${shifts.length === 1 ? '' : 's'} at this hospital`}
+        onClose={() => setAll(false)}
+      >
+        <ul className="-mx-4 divide-y divide-line sm:-mx-5">
+          {shifts.map((shift) => (
+            <ShiftHistoryRow key={shift.id} shift={shift} padded />
+          ))}
+        </ul>
+      </Modal>
     </div>
+  )
+}
+
+function ShiftHistoryRow({ shift, padded }: { shift: Shift; padded?: boolean }) {
+  return (
+    <li>
+      <Link to={`/shifts?id=${shift.id}`} className={`flex items-center justify-between gap-3 text-sm hover:text-brand-deep ${padded ? 'px-4 py-3 sm:px-5' : 'py-2.5'}`}>
+        <span>
+          <span className="block font-medium text-ink">{shift.department}</span>
+          <span className="text-xs text-muted">{dateOnly(shift.date)} · {shift.startTime}–{shift.endTime}</span>
+        </span>
+        <Badge status={shift.attendance.status === 'pending' ? shift.status : shift.attendance.status} />
+      </Link>
+    </li>
   )
 }

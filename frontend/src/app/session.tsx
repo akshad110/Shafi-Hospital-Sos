@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { session } from '../services/api'
 import { isConnectionError } from '../lib/utils'
+import { Logo } from '../components/ui/Logo'
 import { RealtimeProvider } from './realtime'
 import type { Hospital, SessionUser } from '../types/domain'
 
@@ -26,6 +27,7 @@ export function SessionGate({ children, login }: { children: React.ReactNode; lo
     return (
       <div className="grid min-h-screen place-items-center bg-canvas">
         <div className="flex flex-col items-center gap-3">
+          <Logo className="h-12 w-12" />
           <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-mint border-t-brand" />
           <p className="text-sm font-semibold text-muted">Opening the hospital portal…</p>
         </div>

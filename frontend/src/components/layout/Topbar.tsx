@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bell, ChevronDown, CreditCard, LifeBuoy, LogOut, Menu, UserRound } from 'lucide-react'
 import { cn, initials, PLAN_LABEL } from '../../lib/utils'
+import { Logo } from '../ui/Logo'
 import { logout } from '../../services/api'
 import { useLiveStatus } from '../../app/realtime'
 import type { Hospital } from '../../types/domain'
@@ -47,6 +48,7 @@ export function Topbar({ hospital, unread, onMenu }: { hospital: Hospital; unrea
         <button type="button" onClick={onMenu} className="grid h-10 w-10 place-items-center rounded-xl border border-line-strong text-muted transition-colors hover:border-brand hover:text-brand-deep xl:hidden" aria-label="Open menu">
           <Menu className="h-4 w-4" />
         </button>
+        <Logo className="h-9 w-9 sm:h-10 sm:w-10" />
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold text-ink xl:hidden">Shafi SOS</p>
           <p className="hidden min-w-0 items-center gap-1.5 text-xs font-medium text-muted md:flex md:text-sm md:font-semibold md:text-ink" title={LIVE[live].hint}>

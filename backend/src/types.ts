@@ -65,6 +65,7 @@ export interface Job {
   experience: string
   skills: string[]
   certifications: string[]
+  requiredDocuments?: { id: string; name: string; instruction?: string }[]
   workersNeeded: number
   date: string
   startTime: string
@@ -90,6 +91,14 @@ export interface PayoutAccount {
   ifsc?: string
 }
 
+export interface WorkerDocument {
+  id: string
+  name: string
+  kind?: string
+  url?: string
+  fileName?: string
+}
+
 export interface Worker {
   id: string
   hospitalId: string
@@ -105,6 +114,7 @@ export interface Worker {
   credentialExpiry: string
   availability: string
   payoutAccount?: PayoutAccount
+  documents?: WorkerDocument[]
 }
 
 export interface Note {
@@ -121,6 +131,14 @@ export interface WorkerMessage {
   at: string
 }
 
+export interface DocumentReview {
+  id: string
+  label: string
+  status: 'verified' | 'rejected'
+  reason: string
+  at: string
+}
+
 export interface Application {
   id: string
   hospitalId: string
@@ -131,6 +149,8 @@ export interface Application {
   timeline: { status: string; at: string; note: string }[]
   notes: Note[]
   messages: WorkerMessage[]
+  documentReviews: DocumentReview[]
+  uploads?: { id: string; documentId?: string; name: string; url?: string; fileName?: string; contentType?: string; at: string }[]
 }
 
 export interface Attendance {

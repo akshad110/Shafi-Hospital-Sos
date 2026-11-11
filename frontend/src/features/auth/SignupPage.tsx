@@ -5,6 +5,7 @@ import { register } from '../../services/api'
 import { errorMessage } from '../../lib/utils'
 import { Button } from '../../components/ui/Button'
 import { Field, TextInput } from '../../components/ui/Field'
+import { Logo } from '../../components/ui/Logo'
 import { BrandPanel } from './BrandPanel'
 
 export function SignupPage() {
@@ -38,6 +39,10 @@ export function SignupPage() {
       <BrandPanel />
       <main className="flex min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:px-5 sm:py-10">
         <div className="w-full max-w-[460px]">
+          <div className="mb-6 flex items-center gap-3 lg:hidden">
+            <Logo className="h-9 w-9" />
+            <span className="text-sm font-semibold text-ink">Shafi SOS · Hospital Portal</span>
+          </div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">Register your hospital</h1>
           <p className="mt-1.5 text-[13px] text-muted sm:text-sm">You start on a 7-day free trial. Post requests and confirm hires from this portal.</p>
 

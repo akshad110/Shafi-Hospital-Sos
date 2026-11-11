@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { getCatalog } from '../catalog.js'
 import { asyncHandler, type AuthedRequest } from '../http.js'
 import { getHospital, updateHospital } from '../services/accounts.js'
-import { confirmApplication, getApplication, listApplications, offerApplication, rejectApplication, requestDocuments, shortlistApplication } from '../services/applications.js'
+import { confirmApplication, getApplication, listApplications, offerApplication, rejectApplication, requestDocuments, reviewApplicationDocument, shortlistApplication } from '../services/applications.js'
 import { changePlan, getSubscription, listBilling } from '../services/billing.js'
 import { cancelJob, createJob, getJob, listJobs, submitJob, updateJob, type JobInput } from '../services/jobs.js'
 import { addShiftNote, createTicket, getShift, getWorker, listShifts, listWorkers } from '../services/workforce.js'
@@ -27,6 +27,11 @@ const jobSchema = z.object({
   experience: z.string().min(1, 'Add experience'),
   skills: z.array(z.string()).min(1, 'Add at least one skill'),
   certifications: z.array(z.string()),
+  requiredDocuments: z.array(z.object({
+    id: z.string().min(1),
+    name: z.string().trim().min(2).max(80),
+    instruction: z.string().optional(),
+  })).optional().default([]),
   workersNeeded: z.number().int().min(1).max(50),
   date: z.string().min(8, 'Choose a date'),
   startTime: z.string().min(4, 'Add a start time'),
@@ -167,6 +172,16 @@ hospitalRouter.post('/applications/:applicationId/request-documents', asyncHandl
   found(res, await requestDocuments(hospitalId(req), req.params.applicationId, body.code, body.dueBy, body.label), 'application', 'Application not found')
 }))
 
+hospitalRouter.post('/applications/:applicationId/documents/review', asyncHandler(async (req, res) => {
+  const body = z.object({
+    label: z.string().trim().min(2, 'Choose a document'),
+    status: z.enum(['verified', 'rejected']),
+    reasonCode: z.string().optional(),
+    reason: z.string().trim().max(160).optional(),
+  }).parse(req.body)
+  found(res, await reviewApplicationDocument(hospitalId(req), req.params.applicationId, body), 'application', 'Application not found')
+}))
+
 hospitalRouter.get('/hospital/shifts', asyncHandler(async (req, res) => {
   const query = z.object({ status: z.string().optional(), department: z.string().optional(), date: z.string().optional() }).parse(req.query)
   res.json({ items: await listShifts(hospitalId(req), query) })
@@ -202,6 +217,7 @@ hospitalRouter.get('/hospital/workers/:workerId/documents', asyncHandler(async (
       certifications: person.certifications || [],
       skills: person.skills || [],
       credentialExpiry: person.credentialExpiry || '',
+      files: person.documents || [],
     },
   })
 }))

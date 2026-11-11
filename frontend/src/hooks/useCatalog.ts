@@ -9,6 +9,7 @@ const EMPTY: Catalog = {
   supportContact: { email: '', phone: '', hours: '' },
   payoutMethods: [],
   documentRequests: [],
+  documentRejectReasons: [],
 }
 
 export function useCatalog() {

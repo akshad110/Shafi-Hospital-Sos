@@ -16,6 +16,7 @@ import {
   Users,
   Workers,
 } from '../models.js'
+import { PLAN_MONTHLY } from '../billing.js'
 import { CATALOG_SEED } from '../catalog.js'
 import { createSeed } from './seed.js'
 
@@ -57,9 +58,17 @@ const DEMO_CERTS: Record<string, string[]> = {
 }
 
 export async function ensureHospitalHiring() {
+  await Plans.updateOne({ code: 'starter' }, { $set: { price: PLAN_MONTHLY.starter, months: 1 } })
+  await Plans.updateOne({ code: 'professional' }, { $set: { price: PLAN_MONTHLY.professional * 6, months: 6 } })
+  await Plans.updateOne({ code: 'enterprise' }, { $set: { price: PLAN_MONTHLY.enterprise * 12, months: 12 } })
   await Workers.updateMany({ certifications: { $exists: false } }, { $set: { certifications: [] } })
   await Applications.updateMany({ messages: { $exists: false } }, { $set: { messages: [] } })
+  await Applications.updateMany({ documentReviews: { $exists: false } }, { $set: { documentReviews: [] } })
+  await Workers.updateMany({ documents: { $exists: false } }, { $set: { documents: [] } })
+  await Catalogs.updateOne({ key: 'documentRejectReasons' }, { $set: { key: 'documentRejectReasons', value: CATALOG_SEED.documentRejectReasons } }, { upsert: true })
   await Jobs.updateMany({ status: 'pending_review' }, { $set: { status: 'approved' } })
+  await Jobs.updateMany({ requiredDocuments: { $exists: false } }, { $set: { requiredDocuments: [] } })
+  await Applications.updateMany({ uploads: { $exists: false } }, { $set: { uploads: [] } })
   await Catalogs.updateOne({ key: 'documentRequests' }, { $set: { key: 'documentRequests', value: CATALOG_SEED.documentRequests } }, { upsert: true })
   await Catalogs.updateOne({ key: 'faqs' }, { $set: { value: CATALOG_SEED.faqs } }, { upsert: true })
   for (const [id, certifications] of Object.entries(DEMO_CERTS)) {

@@ -17,3 +17,19 @@ export function documentRequestBody(code: string, due: string, label?: string) {
   const name = (label || '').trim() || 'document'
   return `Your ${name} is missing. Please upload it before ${due}.`
 }
+
+export const DOCUMENT_REJECT_REASONS = [
+  { code: 'blurry', label: 'Unreadable or blurry', body: 'Your {doc} was not verified. The file is unreadable or blurry. Please upload a clear copy.' },
+  { code: 'expired', label: 'Expired', body: 'Your {doc} was not verified. It is expired. Please upload a current copy.' },
+  { code: 'name', label: 'Name does not match', body: 'Your {doc} was not verified. The name on the document does not match. Please upload the correct file.' },
+  { code: 'wrong', label: 'Wrong document', body: 'Your {doc} was not verified. This is the wrong document. Please upload the correct one.' },
+  { code: 'incomplete', label: 'Incomplete or cut off', body: 'Your {doc} was not verified. The file is incomplete or cut off. Please upload the full document.' },
+  { code: 'invalid', label: 'Looks invalid', body: 'Your {doc} was not verified. The file does not look valid. Please upload an original copy.' },
+  { code: 'other', label: 'Other', body: 'Your {doc} was not verified. {reason}. Please upload a valid copy.' },
+] as const
+
+export function documentRejectBody(code: string, doc: string, extra?: string) {
+  const item = DOCUMENT_REJECT_REASONS.find((entry) => entry.code === code) || DOCUMENT_REJECT_REASONS[DOCUMENT_REJECT_REASONS.length - 1]
+  const reason = (extra || '').trim() || item.label
+  return item.body.replace('{doc}', doc).replace('{reason}', reason)
+}

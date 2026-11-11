@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Controller, useForm, type UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Check, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Check, CheckCircle2, Plus, X } from 'lucide-react'
 import { MAX_DESC_WORDS, MIN_DESC_WORDS, requestSchema, steps, wordCount, type RequestValues } from '../../schemas/request'
 import { createJob } from '../../services/api'
 import { defaultCuts } from '../../lib/payRules'
@@ -37,6 +37,7 @@ export default function CreateRequestPage() {
       workersNeeded: 1,
       location: hospital.address,
       certifications: '',
+      requiredDocuments: [],
       notes: '',
     },
   })
@@ -147,6 +148,7 @@ export default function CreateRequestPage() {
                       {descWords > MAX_DESC_WORDS && ` · Shorten this to ${MAX_DESC_WORDS} words`}
                     </p>
                   </div>
+                  <RequiredDocumentsField form={form} />
                 </div>
               )}
               {step === 1 && (
@@ -283,6 +285,60 @@ function PayRulesStep({ form, values, errors }: { form: UseFormReturn<RequestVal
   )
 }
 
+function RequiredDocumentsField({ form }: { form: UseFormReturn<RequestValues> }) {
+  const [draft, setDraft] = useState('')
+  const docs = form.watch('requiredDocuments') || []
+
+  function add() {
+    const name = draft.trim()
+    if (name.length < 2) return
+    if (docs.some((item) => item.name.toLowerCase() === name.toLowerCase())) {
+      setDraft('')
+      return
+    }
+    form.setValue('requiredDocuments', [...docs, { id: crypto.randomUUID(), name }], { shouldDirty: true })
+    setDraft('')
+  }
+
+  return (
+    <div className="rounded-2xl border border-line p-3.5 sm:p-4">
+      <p className="text-sm font-semibold text-ink">Documents to upload</p>
+      <p className="mt-0.5 text-xs text-muted">Workers will see these names when they apply, and must upload an original photo or PDF of each one.</p>
+      {docs.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {docs.map((item) => (
+            <li key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-canvas px-3 py-2">
+              <span className="min-w-0 truncate text-sm font-medium text-ink">{item.name}</span>
+              <button
+                type="button"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted hover:bg-white hover:text-ink"
+                aria-label={`Remove ${item.name}`}
+                onClick={() => form.setValue('requiredDocuments', docs.filter((entry) => entry.id !== item.id), { shouldDirty: true })}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-3 flex gap-2">
+        <div className="min-w-0 flex-1">
+          <TextInput
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); add() } }}
+            placeholder="Add document name, e.g. BLS certificate"
+            maxLength={80}
+          />
+        </div>
+        <Button type="button" variant="outline" className="shrink-0" disabled={draft.trim().length < 2} onClick={add}>
+          <Plus className="h-4 w-4" /> Add
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function AllowRow({ checked, onCheck, title, hint, children }: { checked: boolean; onCheck: (value: boolean) => void; title: string; hint: string; children?: React.ReactNode }) {
   return (
     <div className={cn('rounded-xl border px-3 py-3', checked ? 'border-brand/40 bg-mint/40' : 'border-line')}>
@@ -329,6 +385,11 @@ function toPayload(values: RequestValues, status: 'draft' | 'approved') {
     experience: values.experience || 'Flexible',
     skills: split(values.skills).length ? split(values.skills) : [values.role],
     certifications: split(values.certifications),
+    requiredDocuments: (values.requiredDocuments || []).map((item) => ({
+      id: item.id,
+      name: item.name.trim(),
+      instruction: 'Upload an original photo or PDF of this document.',
+    })),
     workersNeeded: Number(values.workersNeeded),
     date: values.date,
     startTime: values.startTime,

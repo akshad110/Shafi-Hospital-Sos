@@ -118,6 +118,11 @@ export async function requestApplicationDocuments(id: string, body: { code: stri
   return data.application
 }
 
+export async function reviewApplicationDocument(id: string, body: { label: string; status: 'verified' | 'rejected'; reasonCode?: string; reason?: string }) {
+  const { data } = await client.post<{ application: Application }>(`/applications/${id}/documents/review`, body)
+  return data.application
+}
+
 export async function shifts(params: Record<string, string | undefined> = {}) {
   const { data } = await client.get<{ items: Shift[] }>('/hospital/shifts', { params })
   return data.items

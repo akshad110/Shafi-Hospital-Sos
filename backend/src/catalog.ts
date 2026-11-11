@@ -1,4 +1,4 @@
-import { DOCUMENT_REQUESTS } from './lib/documentRequests.js'
+import { DOCUMENT_REJECT_REASONS, DOCUMENT_REQUESTS } from './lib/documentRequests.js'
 import { Catalogs } from './models.js'
 
 export interface Catalog {
@@ -8,6 +8,7 @@ export interface Catalog {
   supportContact: { email: string; phone: string; hours: string }
   payoutMethods: { value: string; label: string }[]
   documentRequests: { code: string; label: string; body: string }[]
+  documentRejectReasons: { code: string; label: string; body: string }[]
 }
 
 export const CATALOG_SEED: Catalog = {
@@ -16,6 +17,7 @@ export const CATALOG_SEED: Catalog = {
   faqs: [
     { q: 'Why is my request not visible to workers?', a: 'Send the request from this portal. Workers see it as soon as it is posted.' },
     { q: 'Can I confirm a worker myself?', a: 'Yes. Open Applications, check their certificates, then confirm the hire or decline with a reason.' },
+    { q: 'How do I ask workers for documents?', a: 'When you create a request, add each document name under Documents to upload. Workers see those names and must attach an original photo or PDF of each one.' },
     { q: 'When can I pay a worker?', a: 'Once their contract period is over and every shift has an attendance mark, the salary is ready to pay from Attendance & Payroll.' },
     { q: 'What happens when my free trial ends?', a: 'Existing shifts continue, but you need a plan to post new requests.' },
   ],
@@ -27,6 +29,7 @@ export const CATALOG_SEED: Catalog = {
     { value: 'cheque', label: 'Cheque' },
   ],
   documentRequests: DOCUMENT_REQUESTS.map((item) => ({ code: item.code, label: item.label, body: item.body })),
+  documentRejectReasons: DOCUMENT_REJECT_REASONS.map((item) => ({ code: item.code, label: item.label, body: item.body })),
 }
 
 export async function getCatalog(): Promise<Catalog> {

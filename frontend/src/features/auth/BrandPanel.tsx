@@ -1,4 +1,5 @@
 import { CalendarClock, ShieldCheck, Siren } from 'lucide-react'
+import { Logo } from '../../components/ui/Logo'
 
 const POINTS = [
   { icon: Siren, title: 'Need someone today?', body: 'Send a request. You confirm who is hired.' },
@@ -13,7 +14,7 @@ export function BrandPanel() {
       <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full border border-white/10" />
       <div className="relative">
         <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand text-lg font-bold">S</span>
+          <Logo className="h-11 w-11" />
           <span>
             <span className="block text-[15px] font-semibold">Shafi SOS</span>
             <span className="block text-xs text-white/70">Hospital Portal</span>

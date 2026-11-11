@@ -130,6 +130,7 @@ export const Workers = define<Worker>('workers', {
   city: String,
   credentialExpiry: String,
   availability: String,
+  documents: [sub({ id: String, name: String, kind: String, url: String, fileName: String })],
   payoutAccount: {
     method: { type: String, enum: ['upi', 'bank_transfer'] },
     upiId: String,
@@ -150,6 +151,7 @@ export const Jobs = define<Job>('jobs', {
   experience: String,
   skills: [String],
   certifications: [String],
+  requiredDocuments: [sub({ id: String, name: String, instruction: String })],
   workersNeeded: Number,
   date: String,
   startTime: String,
@@ -177,6 +179,22 @@ export const Applications = define<Application>('applications', {
   timeline: [sub({ status: String, at: String, note: String })],
   notes: [note],
   messages: [sub({ id: String, code: String, body: String, dueBy: String, at: String })],
+  documentReviews: [sub({
+    id: String,
+    label: String,
+    status: { type: String, enum: ['verified', 'rejected'] },
+    reason: String,
+    at: String,
+  })],
+  uploads: [sub({
+    id: String,
+    documentId: String,
+    name: String,
+    url: String,
+    fileName: String,
+    contentType: String,
+    at: String,
+  })],
 }, [{ hospitalId: 1, appliedAt: -1 }])
 
 export const Contracts = define<Contract>('contracts', {

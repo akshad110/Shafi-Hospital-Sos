@@ -5,6 +5,7 @@ import { login } from '../../services/api'
 import { errorMessage } from '../../lib/utils'
 import { Button } from '../../components/ui/Button'
 import { Field, TextInput } from '../../components/ui/Field'
+import { Logo } from '../../components/ui/Logo'
 import { BrandPanel } from './BrandPanel'
 
 const DEMO = import.meta.env.DEV
@@ -40,7 +41,7 @@ export function LoginPage() {
       <main className="flex min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:px-5 sm:py-10">
         <div className="w-full max-w-[420px]">
           <div className="mb-6 flex items-center gap-3 lg:hidden">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-base font-bold text-white">S</span>
+            <Logo className="h-9 w-9" />
             <span className="text-sm font-semibold text-ink">Shafi SOS · Hospital Portal</span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">Welcome back</h1>

@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Bell, CalendarClock, ClipboardCheck, ClipboardList, CreditCard, FileText, Home, LifeBuoy, Siren, UserRound, Users, Wallet } from 'lucide-react'
 import { cn, initials, PLAN_LABEL } from '../../lib/utils'
+import { Logo } from '../ui/Logo'
 import type { Hospital } from '../../types/domain'
 
 const items = [
@@ -29,7 +30,7 @@ export function Sidebar({ hospital, permissions, counts, onNavigate, collapsed =
   return (
     <aside className={cn('flex h-full flex-col overflow-y-auto border-r border-line bg-white', collapsed ? 'w-[76px] items-center px-2 py-4' : 'w-[272px] px-3.5 py-5')}>
       <button type="button" onClick={() => go('/')} className={cn('flex items-center gap-3 rounded-xl px-1.5 py-1 text-left', collapsed && 'justify-center')}>
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand text-lg font-bold text-white shadow-sm">S</span>
+        <Logo className="shadow-sm" />
         {!collapsed && (
           <span>
             <span className="block text-[15px] font-semibold leading-tight text-ink">Shafi SOS</span>

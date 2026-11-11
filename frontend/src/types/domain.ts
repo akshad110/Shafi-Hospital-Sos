@@ -37,6 +37,7 @@ export interface Job {
   experience: string
   skills: string[]
   certifications: string[]
+  requiredDocuments?: { id: string; name: string; instruction?: string }[]
   workersNeeded: number
   date: string
   startTime: string
@@ -58,6 +59,23 @@ export interface WorkerMessage {
   code: string
   body: string
   dueBy: string
+  at: string
+}
+
+export interface WorkerDocument {
+  id: string
+  name: string
+  kind?: string
+  url?: string
+  fileName?: string
+  documentId?: string
+}
+
+export interface DocumentReview {
+  id: string
+  label: string
+  status: 'verified' | 'rejected'
+  reason: string
   at: string
 }
 
@@ -88,6 +106,10 @@ export interface Application {
   jobQualifications?: string[]
   jobCertifications?: string[]
   jobSkills?: string[]
+  requiredDocuments?: { id: string; name: string; instruction?: string }[]
+  documents?: WorkerDocument[]
+  documentReviews?: DocumentReview[]
+  uploads?: WorkerDocument[]
 }
 
 export type AttendanceStatus = 'pending' | 'present' | 'late' | 'half_day' | 'absent'
@@ -291,6 +313,7 @@ export interface Catalog {
   supportContact: { email: string; phone: string; hours: string }
   payoutMethods: { value: PayoutMethod; label: string }[]
   documentRequests: { code: string; label: string; body: string }[]
+  documentRejectReasons: { code: string; label: string; body: string }[]
 }
 
 export type PlanCode = 'starter' | 'professional' | 'enterprise'

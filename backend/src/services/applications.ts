@@ -1,12 +1,12 @@
 import type { PipelineStage } from 'mongoose'
 import { Applications, Contracts, Jobs, Shifts, Workers } from '../models.js'
 import { changed } from '../realtime.js'
-import { DOCUMENT_REQUESTS, documentRequestBody } from '../lib/documentRequests.js'
+import { DOCUMENT_REJECT_REASONS, DOCUMENT_REQUESTS, documentRejectBody, documentRequestBody } from '../lib/documentRequests.js'
 import { presentDayPay, resolvePayRules } from '../lib/payRules.js'
 import { escapeRegex, httpError, nowIso, paging, shiftHours, uid, ymd } from '../lib/util.js'
 import { liveShiftStatus } from './payroll.js'
 import { notify } from './notifications.js'
-import type { Application, ApplicationStatus, Contract, Job, Shift, Worker } from '../types.js'
+import type { Application, ApplicationStatus, Contract, DocumentReview, Job, Shift, Worker } from '../types.js'
 
 const OPEN: ApplicationStatus[] = ['under_review', 'needs_update', 'shortlisted']
 const ACTION: Record<ApplicationStatus, string> = {
@@ -54,6 +54,10 @@ function joined(match: Record<string, unknown>): PipelineStage[] {
         jobQualifications: { $ifNull: ['$job.qualifications', []] },
         jobCertifications: { $ifNull: ['$job.certifications', []] },
         jobSkills: { $ifNull: ['$job.skills', []] },
+        requiredDocuments: { $ifNull: ['$job.requiredDocuments', []] },
+        documents: { $ifNull: ['$worker.documents', []] },
+        documentReviews: { $ifNull: ['$documentReviews', []] },
+        uploads: { $ifNull: ['$uploads', []] },
       },
     },
   ]
@@ -191,6 +195,53 @@ export async function requestDocuments(hospitalId: string, id: string, code: str
     type: 'application',
     title: `Asked ${worker?.name || 'the worker'} to update`,
     body,
+    href: `/applications?id=${id}`,
+  })
+  return getApplication(hospitalId, id)
+}
+
+export async function reviewApplicationDocument(
+  hospitalId: string,
+  id: string,
+  input: { label: string; status: 'verified' | 'rejected'; reasonCode?: string; reason?: string },
+) {
+  const current = await Applications.findOne({ hospitalId, id }).lean<Application>()
+  if (!current) return null
+  const label = input.label.trim()
+  if (label.length < 2) throw httpError(400, 'Choose a document')
+  const extra = (input.reason || '').trim()
+  if (input.status === 'rejected' && !(input.reasonCode || extra)) throw httpError(400, 'Choose a reason')
+  const reasonOption = DOCUMENT_REJECT_REASONS.find((item) => item.code === input.reasonCode)
+  const storedReason = input.status === 'rejected' ? (input.reasonCode === 'other' || !reasonOption ? extra || 'Not accepted' : reasonOption.label) : ''
+  const body = input.status === 'rejected' ? documentRejectBody(input.reasonCode || 'other', label, extra) : `Hospital verified ${label}`
+  const now = nowIso()
+  const reviews = [...(current.documentReviews || [])]
+  const index = reviews.findIndex((item) => item.label.toLowerCase() === label.toLowerCase())
+  const review: DocumentReview = {
+    id: index >= 0 ? reviews[index].id : uid(),
+    label,
+    status: input.status,
+    reason: storedReason,
+    at: now,
+  }
+  if (index >= 0) reviews[index] = review
+  else reviews.push(review)
+  const nextStatus = input.status === 'rejected' && current.status !== 'confirmed' && current.status !== 'rejected'
+    ? 'needs_update'
+    : current.status
+  const push: Record<string, unknown> = {
+    timeline: { status: nextStatus, at: now, note: body },
+  }
+  if (input.status === 'rejected') {
+    push.messages = { id: uid(), code: 'not_verified', body, dueBy: '', at: now }
+  }
+  await Applications.updateOne({ hospitalId, id }, { $set: { documentReviews: reviews, status: nextStatus }, $push: push })
+  changed(hospitalId, 'applications', 'notifications')
+  const worker = await Workers.findOne({ hospitalId, id: current.workerId }, { name: 1 }).lean<Worker>()
+  await notify(hospitalId, {
+    type: 'application',
+    title: input.status === 'verified' ? `Verified ${label}` : `${label} not verified`,
+    body: input.status === 'verified' ? `${worker?.name || 'Worker'} · ${label}` : body,
     href: `/applications?id=${id}`,
   })
   return getApplication(hospitalId, id)
