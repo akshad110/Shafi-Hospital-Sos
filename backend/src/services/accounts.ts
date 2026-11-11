@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { HIDE, Hospitals, Sessions, Subscriptions, Users } from '../models.js'
+import { HIDE, Hospitals, Jobs, Sessions, Subscriptions, Users } from '../models.js'
 import { TRIAL, trialWindow } from '../billing.js'
 import { catalogRoles } from '../catalog.js'
 import { changed } from '../realtime.js'
@@ -31,20 +31,29 @@ export async function getHospital(id: string) {
   return Hospitals.findOne({ id }, HIDE).lean<Hospital>()
 }
 
-export async function registerHospital(input: { hospitalName: string; email: string; password: string; phone: string; city: string; address: string }) {
+function placeOf(input: { city: string; state: string; country: string }) {
+  return {
+    city: input.city.trim(),
+    state: input.state.trim(),
+    country: input.country.trim(),
+  }
+}
+
+export async function registerHospital(input: { hospitalName: string; email: string; password: string; phone: string; city: string; state: string; country: string; address: string }) {
   if (await findUserByEmail(input.email)) throw httpError(409, 'An account with this email already exists')
   const id = uid()
   const trial = trialWindow()
+  const place = placeOf(input)
   const hospital: Hospital = {
     id,
     name: input.hospitalName,
     email: input.email.toLowerCase(),
     phone: input.phone,
-    city: input.city,
-    address: input.address,
+    ...place,
+    address: input.address.trim(),
     departments: ['General Medicine'],
     customRoles: [],
-    locations: [input.city],
+    locations: [place.city],
     verified: false,
     representative: '',
     representativeRole: '',
@@ -81,15 +90,23 @@ export async function registerHospital(input: { hospitalName: string; email: str
   return { user, hospital }
 }
 
-const EDITABLE: (keyof Hospital)[] = ['name', 'phone', 'city', 'address', 'departments', 'representative', 'representativeRole', 'notifications']
+const EDITABLE: (keyof Hospital)[] = ['name', 'phone', 'city', 'state', 'country', 'address', 'departments', 'representative', 'representativeRole', 'notifications']
 
 export async function updateHospital(id: string, patch: Partial<Hospital>) {
   const update: Record<string, unknown> = {}
   for (const key of EDITABLE) {
-    if (patch[key] !== undefined) update[key] = patch[key]
+    if (patch[key] !== undefined) update[key] = typeof patch[key] === 'string' ? (patch[key] as string).trim() : patch[key]
   }
   const hospital = await Hospitals.findOneAndUpdate({ id }, { $set: update }, { new: true, projection: HIDE }).lean<Hospital>()
-  if (hospital) changed(id, 'session')
+  if (hospital) {
+    if (update.city !== undefined || update.state !== undefined || update.country !== undefined) {
+      await Jobs.updateMany(
+        { hospitalId: id, status: { $in: ['draft', 'approved'] } },
+        { $set: { city: hospital.city, state: hospital.state, country: hospital.country } },
+      )
+    }
+    changed(id, 'session')
+  }
   return hospital
 }
 

@@ -29,6 +29,8 @@ const registerSchema = z.object({
   password: z.string().min(8, 'Use at least 8 characters'),
   phone: z.string().trim().min(8, 'Enter a phone number'),
   city: z.string().trim().min(2, 'City is required'),
+  state: z.string().trim().min(2, 'State is required'),
+  country: z.string().trim().min(2, 'Country is required'),
   address: z.string().trim().min(5, 'Address is required'),
 })
 

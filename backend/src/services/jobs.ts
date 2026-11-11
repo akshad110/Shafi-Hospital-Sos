@@ -1,13 +1,13 @@
 import { HIDE, Jobs } from '../models.js'
 import { changed } from '../realtime.js'
 import { escapeRegex, httpError, nowIso, paging, uid } from '../lib/util.js'
-import { rememberChoices } from './accounts.js'
+import { getHospital, rememberChoices } from './accounts.js'
 import { assertCanPost } from './billing.js'
 import { notify } from './notifications.js'
 import { presentDayPay, resolvePayRules } from '../lib/payRules.js'
 import type { Job } from '../types.js'
 
-export type JobInput = Omit<Job, 'id' | 'hospitalId' | 'createdAt' | 'updatedAt' | 'status'> & { status?: Job['status'] }
+export type JobInput = Omit<Job, 'id' | 'hospitalId' | 'createdAt' | 'updatedAt' | 'status' | 'city' | 'state' | 'country'> & { status?: Job['status'] }
 
 export async function listJobs(hospitalId: string, query: { q?: string; status?: string; urgent?: string; role?: string; department?: string; shiftType?: string; page?: number; limit?: number }) {
   const filter: Record<string, unknown> = { hospitalId }
@@ -52,11 +52,15 @@ export async function createJob(hospitalId: string, input: JobInput) {
     createdAt: { $gt: new Date(Date.now() - 2 * 60 * 1000).toISOString() },
   })
   if (duplicate) throw httpError(409, 'This request was just submitted')
+  const hospital = await getHospital(hospitalId)
   const now = nowIso()
   const job: Job = {
     ...input,
     department: input.department.trim(),
     role: input.role.trim(),
+    city: hospital?.city || '',
+    state: hospital?.state || '',
+    country: hospital?.country || '',
     requiredDocuments: (input.requiredDocuments || []).map((item) => ({
       id: item.id,
       name: item.name.trim(),

@@ -71,6 +71,16 @@ export async function ensureHospitalHiring() {
   await Applications.updateMany({ uploads: { $exists: false } }, { $set: { uploads: [] } })
   await Catalogs.updateOne({ key: 'documentRequests' }, { $set: { key: 'documentRequests', value: CATALOG_SEED.documentRequests } }, { upsert: true })
   await Catalogs.updateOne({ key: 'faqs' }, { $set: { value: CATALOG_SEED.faqs } }, { upsert: true })
+  await Hospitals.updateOne({ id: 'h-city' }, { $set: { city: 'Pune', state: 'Maharashtra', country: 'India' } })
+  await Hospitals.updateMany({ state: { $exists: false } }, { $set: { state: '' } })
+  await Hospitals.updateMany({ country: { $exists: false } }, { $set: { country: '' } })
+  const places = await Hospitals.find({}, { id: 1, city: 1, state: 1, country: 1, _id: 0 }).lean<{ id: string; city?: string; state?: string; country?: string }[]>()
+  for (const hospital of places) {
+    await Jobs.updateMany(
+      { hospitalId: hospital.id, $or: [{ city: { $exists: false } }, { city: '' }] },
+      { $set: { city: hospital.city || '', state: hospital.state || '', country: hospital.country || '' } },
+    )
+  }
   for (const [id, certifications] of Object.entries(DEMO_CERTS)) {
     await Workers.updateOne(
       { id, $or: [{ certifications: { $exists: false } }, { certifications: { $size: 0 } }] },

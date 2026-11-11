@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { BadgeCheck, Bell, ChevronRight, ClipboardCheck, CreditCard, FileText, LifeBuoy, LogOut, MapPin, Shield, Users, Wallet } from 'lucide-react'
 import type { PrefKey } from '../../types/domain'
 import { changePassword, logout, updateHospital } from '../../services/api'
-import { cn, errorMessage, initials, PLAN_LABEL } from '../../lib/utils'
+import { cn, errorMessage, initials, placeLabel, PLAN_LABEL } from '../../lib/utils'
 import { useSession } from '../../app/session'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -27,6 +27,8 @@ export default function ProfilePage() {
     name: hospital.name,
     phone: hospital.phone,
     city: hospital.city,
+    state: hospital.state || '',
+    country: hospital.country || '',
     address: hospital.address,
     representative: hospital.representative,
     representativeRole: hospital.representativeRole,
@@ -42,6 +44,8 @@ export default function ProfilePage() {
       name: form.name,
       phone: form.phone,
       city: form.city,
+      state: form.state,
+      country: form.country,
       address: form.address,
       representative: form.representative,
       representativeRole: form.representativeRole,
@@ -93,9 +97,9 @@ export default function ProfilePage() {
           <Fact label="Representative" value={hospital.representative ? `${hospital.representative}${hospital.representativeRole ? ` · ${hospital.representativeRole}` : ''}` : '—'} />
           <Fact label="Phone" value={hospital.phone || '—'} />
           <Fact label="Departments" value={hospital.departments.length ? `${hospital.departments.length} listed` : '—'} />
-          <Fact label="Location" value={hospital.city || '—'} />
+          <Fact label="Location" value={placeLabel(hospital) || '—'} />
         </dl>
-        <p className="flex items-start gap-2 border-t border-line px-5 py-3 text-sm text-muted md:px-6"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-faint" />{hospital.address}</p>
+        <p className="flex items-start gap-2 border-t border-line px-5 py-3 text-sm text-muted md:px-6"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-faint" />{[hospital.address, placeLabel(hospital)].filter(Boolean).join(' · ')}</p>
       </Card>
 
       <Card className="overflow-hidden">
@@ -118,9 +122,11 @@ export default function ProfilePage() {
             <Field label="Phone"><TextInput required value={form.phone} onChange={(event) => set('phone', event.target.value)} /></Field>
             <Field label="Authorised representative"><TextInput value={form.representative} onChange={(event) => set('representative', event.target.value)} /></Field>
             <Field label="Representative role"><TextInput value={form.representativeRole} onChange={(event) => set('representativeRole', event.target.value)} /></Field>
-            <Field label="City"><TextInput required value={form.city} onChange={(event) => set('city', event.target.value)} /></Field>
+            <Field label="City"><TextInput required autoComplete="address-level2" value={form.city} onChange={(event) => set('city', event.target.value)} /></Field>
+            <Field label="State"><TextInput required autoComplete="address-level1" value={form.state} onChange={(event) => set('state', event.target.value)} /></Field>
+            <Field label="Country"><TextInput required autoComplete="country-name" value={form.country} onChange={(event) => set('country', event.target.value)} /></Field>
             <Field label="Departments" hint="Separate with commas"><TextInput value={form.departments} onChange={(event) => set('departments', event.target.value)} /></Field>
-            <div className="sm:col-span-2"><Field label="Address"><TextInput required value={form.address} onChange={(event) => set('address', event.target.value)} /></Field></div>
+            <div className="sm:col-span-2"><Field label="Address"><TextInput required autoComplete="street-address" value={form.address} onChange={(event) => set('address', event.target.value)} /></Field></div>
           </div>
 
           <div id="alerts" className="scroll-mt-24 border-t border-line px-4 py-4 sm:px-5 sm:py-5 md:px-6">

@@ -30,6 +30,10 @@ export function money(amount: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount)
 }
 
+export function placeLabel(place: { city?: string; state?: string; country?: string }) {
+  return [place.city, place.state, place.country].map((part) => part?.trim()).filter(Boolean).join(', ')
+}
+
 export function unitLabel(unit: string) {
   if (unit === 'hourly') return '/hr'
   if (unit === 'daily') return '/day'

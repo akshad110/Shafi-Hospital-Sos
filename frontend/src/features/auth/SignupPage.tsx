@@ -11,7 +11,7 @@ import { BrandPanel } from './BrandPanel'
 export function SignupPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [form, setForm] = useState({ hospitalName: '', email: '', password: '', phone: '', city: '', address: '' })
+  const [form, setForm] = useState({ hospitalName: '', email: '', password: '', phone: '', city: '', state: '', country: '', address: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -50,11 +50,13 @@ export function SignupPage() {
             {error && <p role="alert" className="rounded-xl border border-danger/25 bg-danger-soft px-3.5 py-2.5 text-sm font-medium text-[#b42323]">{error}</p>}
             <Field label="Hospital name"><TextInput required value={form.hospitalName} onChange={(event) => set('hospitalName', event.target.value)} /></Field>
             <Field label="Work email"><TextInput type="email" required autoComplete="email" value={form.email} onChange={(event) => set('email', event.target.value)} /></Field>
+            <Field label="Phone"><TextInput required autoComplete="tel" value={form.phone} onChange={(event) => set('phone', event.target.value)} /></Field>
+            <Field label="Address"><TextInput required autoComplete="street-address" value={form.address} onChange={(event) => set('address', event.target.value)} placeholder="Street, area, landmark" /></Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Phone"><TextInput required autoComplete="tel" value={form.phone} onChange={(event) => set('phone', event.target.value)} /></Field>
-              <Field label="City"><TextInput required value={form.city} onChange={(event) => set('city', event.target.value)} /></Field>
+              <Field label="City"><TextInput required autoComplete="address-level2" value={form.city} onChange={(event) => set('city', event.target.value)} /></Field>
+              <Field label="State"><TextInput required autoComplete="address-level1" value={form.state} onChange={(event) => set('state', event.target.value)} /></Field>
             </div>
-            <Field label="Address"><TextInput required value={form.address} onChange={(event) => set('address', event.target.value)} /></Field>
+            <Field label="Country"><TextInput required autoComplete="country-name" value={form.country} onChange={(event) => set('country', event.target.value)} /></Field>
             <Field label="Password" hint="At least 8 characters"><TextInput type="password" required minLength={8} autoComplete="new-password" value={form.password} onChange={(event) => set('password', event.target.value)} /></Field>
             <Button type="submit" className="mt-1 h-12 w-full" disabled={loading}>{loading ? 'Creating account…' : 'Start free trial'}</Button>
           </form>

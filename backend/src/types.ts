@@ -41,6 +41,8 @@ export interface Hospital {
   email: string
   phone: string
   city: string
+  state: string
+  country: string
   address: string
   departments: string[]
   customRoles: string[]
@@ -72,6 +74,9 @@ export interface Job {
   endTime: string
   shiftType: 'day' | 'night' | 'rotating'
   location: string
+  city?: string
+  state?: string
+  country?: string
   amount: number
   currency: 'INR'
   paymentUnit: PaymentUnit

@@ -57,7 +57,9 @@ export const Hospitals = define<Hospital>('hospitals', {
   name: { type: String, required: true },
   email: { type: String, required: true, lowercase: true },
   phone: String,
-  city: String,
+  city: { type: String, default: '', index: true },
+  state: { type: String, default: '', index: true },
+  country: { type: String, default: '', index: true },
   address: String,
   departments: [String],
   customRoles: { type: [String], default: [] },
@@ -75,7 +77,7 @@ export const Hospitals = define<Hospital>('hospitals', {
     billing: { type: Boolean, default: true },
   },
   permissions: [String],
-})
+}, [{ country: 1, state: 1, city: 1 }])
 
 export const Catalogs = define<CatalogEntry>('catalogs', {
   key: { type: String, required: true, unique: true },
@@ -158,6 +160,9 @@ export const Jobs = define<Job>('jobs', {
   endTime: String,
   shiftType: { type: String, enum: ['day', 'night', 'rotating'] },
   location: String,
+  city: { type: String, default: '', index: true },
+  state: { type: String, default: '', index: true },
+  country: { type: String, default: '', index: true },
   amount: Number,
   currency: { type: String, default: 'INR' },
   paymentUnit: { type: String, enum: ['hourly', 'shift', 'daily'] },
@@ -167,7 +172,7 @@ export const Jobs = define<Job>('jobs', {
   urgent: { type: Boolean, default: false },
   createdAt: String,
   updatedAt: String,
-}, [{ hospitalId: 1, createdAt: -1 }, { hospitalId: 1, status: 1 }])
+}, [{ hospitalId: 1, createdAt: -1 }, { hospitalId: 1, status: 1 }, { country: 1, state: 1, city: 1, status: 1 }])
 
 export const Applications = define<Application>('applications', {
   id,

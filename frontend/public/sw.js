@@ -1,8 +1,8 @@
-const CACHE = 'shafi-shell-v1'
-const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg']
+const CACHE = 'shafi-shell-v2'
+const SHELL = ['/', '/manifest.webmanifest', '/logo.jpeg']
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)))
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).catch(() => undefined))
   self.skipWaiting()
 })
 
@@ -13,14 +13,29 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
+function cacheable(request) {
+  if (request.method !== 'GET') return false
+  let url
+  try {
+    url = new URL(request.url)
+  } catch {
+    return false
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+  if (url.origin !== self.location.origin) return false
+  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/socket.io')) return false
+  return true
+}
+
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url)
-  if (event.request.method !== 'GET' || url.pathname.startsWith('/api') || url.pathname.startsWith('/socket.io')) return
+  if (!cacheable(event.request)) return
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const copy = response.clone()
-        caches.open(CACHE).then((cache) => cache.put(event.request, copy))
+        if (response.ok && response.type === 'basic') {
+          const copy = response.clone()
+          caches.open(CACHE).then((cache) => cache.put(event.request, copy)).catch(() => undefined)
+        }
         return response
       })
       .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/'))),

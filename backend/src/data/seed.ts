@@ -113,6 +113,9 @@ function jobWithPay(job: Job): Job {
       }))
   return {
     ...job,
+    city: job.city || 'Pune',
+    state: job.state || 'Maharashtra',
+    country: job.country || 'India',
     requiredDocuments,
     payRules: resolvePayRules(undefined, presentDayPay(job.amount, job.paymentUnit, job.paymentUnit === 'hourly' ? 8 : 12)),
   }
@@ -137,6 +140,8 @@ export function createSeed() {
       email: 'admin@cityhospital.com',
       phone: '+91 20 4000 2100',
       city: 'Pune',
+      state: 'Maharashtra',
+      country: 'India',
       address: '14 Koregaon Park Road, Pune 411001',
       departments: ['Critical Care', 'Emergency', 'Laboratory', 'General Medicine'],
       customRoles: [],
