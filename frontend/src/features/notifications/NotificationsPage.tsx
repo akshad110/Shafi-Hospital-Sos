@@ -60,7 +60,7 @@ export default function NotificationsPage() {
   const error = toggle.error || remove.error || readAll.error || clear.error
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="space-y-6">
       <PageHeader
         eyebrow="Updates"
         title="What's new"

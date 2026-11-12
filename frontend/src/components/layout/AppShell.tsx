@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { BottomNav } from './BottomNav'
+import { RouteError } from '../ui/RouteError'
 import { applications, contracts, notifications } from '../../services/api'
 import { useSession } from '../../app/session'
 import { WifiOff } from 'lucide-react'
@@ -56,7 +57,9 @@ export function AppShell() {
         <main className="mx-auto w-full min-w-0 max-w-[1240px] px-3 pb-24 pt-4 sm:px-4 md:px-8 md:pb-12 md:pt-6 xl:px-10">
           <AnimatePresence mode="wait">
             <motion.div key={location.pathname} className="min-w-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-              <Outlet />
+              <RouteError key={location.pathname}>
+                <Outlet />
+              </RouteError>
             </motion.div>
           </AnimatePresence>
         </main>

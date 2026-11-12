@@ -1,5 +1,5 @@
-const CACHE = 'shafi-shell-v2'
-const SHELL = ['/', '/manifest.webmanifest', '/logo.jpeg']
+const CACHE = 'shafi-shell-v5'
+const SHELL = ['/', '/manifest.webmanifest', '/logo.png', '/logo-mark.png']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).catch(() => undefined))
@@ -15,6 +15,7 @@ self.addEventListener('activate', (event) => {
 
 function cacheable(request) {
   if (request.method !== 'GET') return false
+  if (request.mode === 'navigate') return false
   let url
   try {
     url = new URL(request.url)
@@ -24,6 +25,9 @@ function cacheable(request) {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
   if (url.origin !== self.location.origin) return false
   if (url.pathname.startsWith('/api') || url.pathname.startsWith('/socket.io')) return false
+  if (request.destination === 'document') return false
+  const accept = request.headers.get('accept') || ''
+  if (accept.includes('text/html')) return false
   return true
 }
 
@@ -38,6 +42,6 @@ self.addEventListener('fetch', (event) => {
         }
         return response
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/'))),
+      .catch(() => caches.match(event.request)),
   )
 })

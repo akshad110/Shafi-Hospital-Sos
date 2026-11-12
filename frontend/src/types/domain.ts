@@ -204,12 +204,32 @@ export interface Worker {
   payoutAccount?: PayoutAccount
   assignments: number
   openContracts?: number
+  ratingAverage?: number
+  ratingCount?: number
+}
+
+export interface WorkerReview {
+  id: string
+  workerId: string
+  hospitalId: string
+  hospitalName: string
+  hospitalCity?: string
+  hospitalState?: string
+  hospitalCountry?: string
+  contractId?: string
+  contractTitle?: string
+  rating: number
+  comment: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface WorkerDetail extends Worker {
   shifts: Shift[]
   contracts: ContractCard[]
   attendance: { present: number; late: number; halfDay: number; absent: number }
+  reviews?: WorkerReview[]
+  myReview?: WorkerReview | null
 }
 
 export interface PayrollSummary {

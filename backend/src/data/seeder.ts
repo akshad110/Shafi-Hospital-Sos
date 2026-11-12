@@ -14,6 +14,7 @@ import {
   Subscriptions,
   Tickets,
   Users,
+  WorkerReviews,
   Workers,
 } from '../models.js'
 import { PLAN_MONTHLY } from '../billing.js'
@@ -41,6 +42,7 @@ export async function seedDatabase() {
     [Payouts, seed.payouts],
     [Notifications, seed.notifications],
     [Tickets, seed.tickets],
+    [WorkerReviews, seed.workerReviews],
   ]
   await Sessions.deleteMany({})
   for (const [model, rows] of targets) {
@@ -81,6 +83,7 @@ export async function ensureHospitalHiring() {
       { $set: { city: hospital.city || '', state: hospital.state || '', country: hospital.country || '' } },
     )
   }
+  await Workers.updateMany({ ratingCount: { $exists: false } }, { $set: { ratingAverage: 0, ratingCount: 0, reviews: [] } })
   for (const [id, certifications] of Object.entries(DEMO_CERTS)) {
     await Workers.updateOne(
       { id, $or: [{ certifications: { $exists: false } }, { certifications: { $size: 0 } }] },

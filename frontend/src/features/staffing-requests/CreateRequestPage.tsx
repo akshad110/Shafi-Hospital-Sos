@@ -7,7 +7,7 @@ import { ArrowLeft, Check, CheckCircle2, Plus, X } from 'lucide-react'
 import { MAX_DESC_WORDS, MIN_DESC_WORDS, requestSchema, steps, wordCount, type RequestValues } from '../../schemas/request'
 import { createJob } from '../../services/api'
 import { defaultCuts } from '../../lib/payRules'
-import { cn, errorMessage, money } from '../../lib/utils'
+import { cn, errorMessage, money, sosPlaces } from '../../lib/utils'
 import { useRoleOptions } from '../../hooks/useCatalog'
 import { useSession } from '../../app/session'
 import { Button, buttonClass } from '../../components/ui/Button'
@@ -35,7 +35,7 @@ export default function CreateRequestPage() {
       halfDayPay: 0,
       absentAllowed: true,
       workersNeeded: 1,
-      location: hospital.address,
+      location: hospital.locations?.[0] || hospital.address,
       certifications: '',
       requiredDocuments: [],
       notes: '',
@@ -155,7 +155,23 @@ export default function CreateRequestPage() {
                 <div className="grid gap-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Start date" error={errors.date?.message}><DateInput min={new Date().toISOString().slice(0, 10)} {...form.register('date')} /></Field>
-                    <Field label="Where" error={errors.location?.message}><TextInput {...form.register('location')} /></Field>
+                    <Field label="Where" error={errors.location?.message}>
+                      <Controller
+                        control={form.control}
+                        name="location"
+                        render={({ field }) => (
+                          <ChoiceSelect
+                            name={field.name}
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            options={sosPlaces(hospital)}
+                            otherLabel="Other location"
+                            otherPlaceholder="Ward, floor or campus"
+                          />
+                        )}
+                      />
+                    </Field>
                   </div>
                   <div>
                     <p className="text-[13px] font-semibold text-ink">Hours each day</p>

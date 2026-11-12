@@ -28,18 +28,14 @@ export function Sidebar({ hospital, permissions, counts, onNavigate, collapsed =
   }
 
   return (
-    <aside className={cn('flex h-full flex-col overflow-y-auto border-r border-line bg-white', collapsed ? 'w-[76px] items-center px-2 py-4' : 'w-[272px] px-3.5 py-5')}>
-      <button type="button" onClick={() => go('/')} className={cn('flex items-center gap-3 rounded-xl px-1.5 py-1 text-left', collapsed && 'justify-center')}>
-        <Logo className="shadow-sm" />
-        {!collapsed && (
-          <span>
-            <span className="block text-[15px] font-semibold leading-tight text-ink">Shafi SOS</span>
-            <span className="block text-xs font-medium text-brand-deep">Hospital Portal</span>
-          </span>
-        )}
-      </button>
+    <aside className={cn('flex h-full flex-col overflow-hidden border-r border-line bg-white', collapsed ? 'w-[76px] items-center px-2 py-4' : 'w-[272px] px-3.5 py-5')}>
+      <div className="sticky top-0 z-10 shrink-0 bg-white pb-4">
+        <button type="button" onClick={() => go('/')} className={cn('flex items-center rounded-xl px-1.5 py-1 text-left', collapsed ? 'justify-center' : 'w-full')}>
+          <Logo mark={collapsed} className={collapsed ? 'h-10 w-10' : 'h-11 w-auto max-w-[210px]'} />
+        </button>
+      </div>
 
-      <nav className={cn('mt-6 flex flex-1 flex-col gap-0.5', collapsed && 'w-full items-center')} aria-label="Main">
+      <nav className={cn('flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto', collapsed && 'w-full items-center')} aria-label="Main">
         {visible.filter((item) => item.group === 'main').map((item) => (
           <NavItem key={item.to} item={item} collapsed={collapsed} counts={counts} onNavigate={onNavigate} />
         ))}
@@ -54,37 +50,39 @@ export function Sidebar({ hospital, permissions, counts, onNavigate, collapsed =
         )}
       </nav>
 
-      {collapsed ? (
-        <button type="button" onClick={() => go('/find?compose=1')} title="Need staff now" className="mt-3 grid h-11 w-11 place-items-center rounded-xl bg-sos text-white transition-colors hover:bg-[#d83434]">
-          <Siren className="h-[18px] w-[18px]" />
-        </button>
-      ) : (
-        <div className="mt-4 rounded-2xl border border-sos/20 bg-white p-3.5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <span className="grid h-7 w-7 place-items-center rounded-lg bg-sos-soft text-sos"><Siren className="h-4 w-4" /></span>
-            Need staff now
-          </div>
-          <p className="mt-2 text-xs leading-5 text-muted">Need someone today?</p>
-          <button type="button" onClick={() => go('/find?compose=1')} className="mt-3 h-9 w-full rounded-xl bg-sos text-[13px] font-semibold text-white transition-colors hover:bg-[#d83434]">
-            Need staff now
+      <div className="shrink-0 bg-white pt-3">
+        {collapsed ? (
+          <button type="button" onClick={() => go('/find?compose=1')} title="Need staff now" className="grid h-11 w-11 place-items-center rounded-xl bg-sos text-white transition-colors hover:bg-[#d83434]">
+            <Siren className="h-[18px] w-[18px]" />
           </button>
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={() => go('/subscription')}
-        title={collapsed ? hospital.name : undefined}
-        className={cn('mt-3 flex items-center gap-3 rounded-xl border border-line p-2.5 text-left transition-colors duration-150 hover:border-brand/50 hover:bg-canvas', collapsed && 'border-0 p-1')}
-      >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-navy text-xs font-bold text-white">{initials(hospital.name)}</span>
-        {!collapsed && (
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-semibold text-ink">{hospital.name}</span>
-            <span className="block text-xs text-muted">{PLAN_LABEL[hospital.plan]} plan</span>
-          </span>
+        ) : (
+          <div className="rounded-2xl border border-sos/20 bg-white p-3.5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-sos-soft text-sos"><Siren className="h-4 w-4" /></span>
+              Need staff now
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted">Need someone today?</p>
+            <button type="button" onClick={() => go('/find?compose=1')} className="mt-3 h-9 w-full rounded-xl bg-sos text-[13px] font-semibold text-white transition-colors hover:bg-[#d83434]">
+              Need staff now
+            </button>
+          </div>
         )}
-      </button>
+
+        <button
+          type="button"
+          onClick={() => go('/subscription')}
+          title={collapsed ? hospital.name : undefined}
+          className={cn('mt-3 flex items-center gap-3 rounded-xl border border-line p-2.5 text-left transition-colors duration-150 hover:border-brand/50 hover:bg-canvas', collapsed && 'border-0 p-1')}
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-navy text-xs font-bold text-white">{initials(hospital.name)}</span>
+          {!collapsed && (
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-semibold text-ink">{hospital.name}</span>
+              <span className="block text-xs text-muted">{PLAN_LABEL[hospital.plan]} plan</span>
+            </span>
+          )}
+        </button>
+      </div>
     </aside>
   )
 }

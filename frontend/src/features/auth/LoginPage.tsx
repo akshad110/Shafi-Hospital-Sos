@@ -40,9 +40,8 @@ export function LoginPage() {
       <BrandPanel />
       <main className="flex min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:px-5 sm:py-10">
         <div className="w-full max-w-[420px]">
-          <div className="mb-6 flex items-center gap-3 lg:hidden">
-            <Logo className="h-9 w-9" />
-            <span className="text-sm font-semibold text-ink">Shafi SOS · Hospital Portal</span>
+          <div className="mb-6 lg:hidden">
+            <Logo className="h-11 w-auto max-w-[240px]" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">Welcome back</h1>
           <p className="mt-1.5 text-[13px] text-muted sm:text-sm">Sign in to request staff, mark attendance, and pay.</p>

@@ -6,7 +6,7 @@ import { getHospital, updateHospital } from '../services/accounts.js'
 import { confirmApplication, getApplication, listApplications, offerApplication, rejectApplication, requestDocuments, reviewApplicationDocument, shortlistApplication } from '../services/applications.js'
 import { changePlan, getSubscription, listBilling } from '../services/billing.js'
 import { cancelJob, createJob, getJob, listJobs, submitJob, updateJob, type JobInput } from '../services/jobs.js'
-import { addShiftNote, createTicket, getShift, getWorker, listShifts, listWorkers } from '../services/workforce.js'
+import { addShiftNote, createTicket, getShift, getWorker, listShifts, listWorkers, upsertWorkerReview } from '../services/workforce.js'
 
 export const hospitalRouter = Router()
 
@@ -89,6 +89,7 @@ hospitalRouter.patch('/hospitals/me', asyncHandler(async (req, res) => {
     country: z.string().min(2).optional(),
     address: z.string().min(5).optional(),
     departments: z.array(z.string().min(2)).optional(),
+    locations: z.array(z.string().trim().min(2).max(80)).max(20).optional(),
     representative: z.string().optional(),
     representativeRole: z.string().optional(),
     notifications: z.object({
@@ -205,6 +206,15 @@ hospitalRouter.get('/hospital/workers', asyncHandler(async (req, res) => {
 
 hospitalRouter.get('/hospital/workers/:workerId', asyncHandler(async (req, res) => {
   found(res, await getWorker(hospitalId(req), req.params.workerId), 'worker', 'Worker not found')
+}))
+
+hospitalRouter.post('/hospital/workers/:workerId/reviews', asyncHandler(async (req, res) => {
+  const body = z.object({
+    rating: z.coerce.number().int().min(1, 'Choose a rating').max(5),
+    comment: z.string().trim().max(500).optional().default(''),
+    contractId: z.string().optional(),
+  }).parse(req.body)
+  res.json(await upsertWorkerReview(hospitalId(req), req.params.workerId, body))
 }))
 
 hospitalRouter.get('/hospital/workers/:workerId/documents', asyncHandler(async (req, res) => {

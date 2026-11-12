@@ -17,6 +17,7 @@ import type {
   Subscription,
   User,
   Worker,
+  WorkerReview,
 } from '../types.js'
 
 const HOSPITAL = 'h-city'
@@ -221,6 +222,30 @@ export function createSeed() {
     { id: 'n-placement', hospitalId: HOSPITAL, type: 'placement', category: 'applications', priority: 'normal', title: 'Worker confirmed', body: 'Ananya Deshpande accepted the 7-day ICU contract.', href: '/attendance/c-ananya-icu', read: true, readAt: at(-4, 20).toISOString(), createdAt: at(-4, 19).toISOString() },
   ]
 
+  const workerReviews: WorkerReview[] = [
+    {
+      id: 'wr-ananya-city',
+      workerId: 'w-ananya',
+      hospitalId: HOSPITAL,
+      hospitalName: 'City General Hospital',
+      hospitalCity: 'Pune',
+      hospitalState: 'Maharashtra',
+      hospitalCountry: 'India',
+      contractId: 'c-ananya-icu',
+      contractTitle: 'ICU cover — 7 day contract',
+      rating: 5,
+      comment: 'Reliable, calm with ventilator patients, and on time every day.',
+      createdAt: at(-1, 10).toISOString(),
+      updatedAt: at(-1, 10).toISOString(),
+    },
+  ]
+  const ananya = workers.find((item) => item.id === 'w-ananya')
+  if (ananya) {
+    ananya.ratingAverage = 5
+    ananya.ratingCount = 1
+    ananya.reviews = workerReviews
+  }
+
   return {
     users,
     hospitals,
@@ -236,5 +261,6 @@ export function createSeed() {
     payouts,
     notifications,
     tickets: [],
+    workerReviews,
   }
 }

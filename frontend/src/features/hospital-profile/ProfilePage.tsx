@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Bell, ChevronRight, ClipboardCheck, CreditCard, FileText, LifeBuoy, LogOut, MapPin, Shield, Users, Wallet } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { BadgeCheck, Bell, ChevronRight, ClipboardCheck, CreditCard, FileText, LifeBuoy, LogOut, MapPin, Plus, Shield, Siren, Users, Wallet, X } from 'lucide-react'
 import type { PrefKey } from '../../types/domain'
-import { changePassword, logout, updateHospital } from '../../services/api'
+import { changePassword, logout, subscription, updateHospital } from '../../services/api'
 import { cn, errorMessage, initials, placeLabel, PLAN_LABEL } from '../../lib/utils'
 import { useSession } from '../../app/session'
 import { Badge } from '../../components/ui/Badge'
@@ -75,7 +75,7 @@ export default function ProfilePage() {
   })
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="space-y-6">
       <Card className="overflow-hidden">
         <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-5 md:p-6">
           <div className="flex min-w-0 items-center gap-3 sm:gap-4">
@@ -101,6 +101,8 @@ export default function ProfilePage() {
         </dl>
         <p className="flex items-start gap-2 border-t border-line px-5 py-3 text-sm text-muted md:px-6"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-faint" />{[hospital.address, placeLabel(hospital)].filter(Boolean).join(' · ')}</p>
       </Card>
+
+      <EmergencyLocation />
 
       <Card className="overflow-hidden">
         <ul className="divide-y divide-line">
@@ -184,8 +186,112 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 border-line px-3 py-2.5 odd:border-r sm:px-5 sm:py-3 lg:border-r lg:last:border-r-0 md:px-6 [&:nth-child(-n+2)]:border-b lg:[&:nth-child(-n+2)]:border-b-0">
       <dt className="text-xs font-medium text-muted">{label}</dt>
-      <dd className="mt-0.5 truncate font-semibold text-ink">{value}</dd>
+      <dd className="mt-0.5 break-words font-semibold text-ink">{value}</dd>
     </div>
+  )
+}
+
+function EmergencyLocation() {
+  const { hospital } = useSession()
+  const queryClient = useQueryClient()
+  const planQuery = useQuery({ queryKey: ['subscription'], queryFn: subscription })
+  const [draft, setDraft] = useState('')
+  const sites = hospital.locations || []
+  const limit = planQuery.data?.subscription?.locationLimit ?? 1
+  const atLimit = sites.length >= limit
+  const place = placeLabel(hospital)
+
+  const save = useMutation({
+    mutationFn: (locations: string[]) => updateHospital({ locations }),
+    onSuccess: async () => {
+      setDraft('')
+      await Promise.all(['session', 'subscription'].map((key) => queryClient.invalidateQueries({ queryKey: [key] })))
+    },
+  })
+
+  function add() {
+    const name = draft.trim()
+    if (name.length < 2 || atLimit) return
+    if (sites.some((item) => item.toLowerCase() === name.toLowerCase())) {
+      setDraft('')
+      return
+    }
+    save.mutate([...sites, name])
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-4 sm:px-5 md:px-6">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sos-soft text-sos">
+            <Siren className="h-[18px] w-[18px]" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+              Emergency SOS
+              <Badge status="urgent">Emergency</Badge>
+            </h2>
+            <p className="mt-0.5 text-xs text-muted">Workers see this place on urgent staff-now posts.</p>
+          </div>
+        </div>
+      </div>
+      <div className="border-t border-line px-4 py-4 sm:px-5 md:px-6">
+        <div className="rounded-xl border border-sos/20 bg-sos-soft/70 px-4 py-3.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sos">Emergency location</p>
+          <p className="mt-2 flex items-start gap-2 text-sm font-semibold text-ink">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-sos" />
+            <span className="min-w-0 break-words">{hospital.address || 'Add your hospital address below'}</span>
+          </p>
+          {place && <p className="mt-1 pl-6 text-sm text-muted">{place}</p>}
+        </div>
+
+        <div className="mt-4">
+          <p className="text-sm font-semibold text-ink">SOS sites</p>
+          <p className="mt-0.5 text-xs text-muted">Pick one of these when you create an emergency post. {sites.length} of {limit} on your plan.</p>
+          {sites.length > 0 && (
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {sites.map((site) => (
+                <li key={site} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-sm font-medium text-ink">
+                  <span className="min-w-0 break-words">{site}</span>
+                  <button
+                    type="button"
+                    className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-muted hover:bg-canvas hover:text-ink"
+                    aria-label={`Remove ${site}`}
+                    disabled={save.isPending}
+                    onClick={() => save.mutate(sites.filter((item) => item !== site))}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <div className="min-w-0 flex-1">
+              <TextInput
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); add() } }}
+                placeholder="Add a site, e.g. Emergency · Ground floor"
+                maxLength={80}
+                disabled={atLimit || save.isPending}
+              />
+            </div>
+            <Button type="button" variant="outline" className="shrink-0" disabled={atLimit || draft.trim().length < 2 || save.isPending} onClick={add}>
+              <Plus className="h-4 w-4" /> Add
+            </Button>
+          </div>
+          {save.isError && <p className="mt-2 text-sm font-medium text-danger">{errorMessage(save.error)}</p>}
+          {atLimit && (
+            <p className="mt-2 text-xs text-muted">
+              Location limit reached.{' '}
+              <Link to="/subscription" className="font-semibold text-brand-deep hover:underline">Upgrade your plan</Link>
+              {' '}to add more SOS sites.
+            </p>
+          )}
+        </div>
+      </div>
+    </Card>
   )
 }
 

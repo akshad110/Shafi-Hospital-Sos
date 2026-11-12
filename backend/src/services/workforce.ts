@@ -1,9 +1,10 @@
-import { Contracts, HIDE, Shifts, Tickets, Workers } from '../models.js'
+import { Contracts, HIDE, Shifts, Tickets, WorkerReviews, Workers } from '../models.js'
 import { changed } from '../realtime.js'
-import { escapeRegex, nowIso, uid } from '../lib/util.js'
+import { escapeRegex, httpError, nowIso, uid } from '../lib/util.js'
 import { payForStatus } from '../lib/payRules.js'
+import { getHospital } from './accounts.js'
 import { listContracts, liveShiftStatus, rulesFor } from './payroll.js'
-import type { Contract, Shift, Worker } from '../types.js'
+import type { Contract, Shift, Worker, WorkerReview } from '../types.js'
 
 async function withWorkers(hospitalId: string, shifts: Shift[]) {
   const [workers, contracts] = await Promise.all([
@@ -66,6 +67,8 @@ export async function listWorkers(hospitalId: string, q?: string) {
   ])
   return workers.map((worker) => ({
     ...worker,
+    ratingAverage: worker.ratingAverage || 0,
+    ratingCount: worker.ratingCount || 0,
     assignments: counts.find((row) => row._id === worker.id)?.total || 0,
     openContracts: open.find((row) => row._id === worker.id)?.total || 0,
   }))
@@ -86,7 +89,63 @@ export async function getWorker(hospitalId: string, id: string) {
     if (status === 'half_day') attendance.halfDay += 1
     if (status === 'absent') attendance.absent += 1
   }
-  return { ...worker, assignments: shifts.length, shifts: shifts.reverse(), contracts: contracts.items, attendance }
+  const reviews = await WorkerReviews.find({ workerId: id }, HIDE).sort({ createdAt: -1 }).lean<WorkerReview[]>()
+  const mine = reviews.find((item) => item.hospitalId === hospitalId) || null
+  return {
+    ...worker,
+    assignments: shifts.length,
+    shifts: shifts.reverse(),
+    contracts: contracts.items,
+    attendance,
+    ratingAverage: worker.ratingAverage || 0,
+    ratingCount: worker.ratingCount || reviews.length,
+    reviews,
+    myReview: mine,
+  }
+}
+
+async function syncWorkerRating(workerId: string) {
+  const reviews = await WorkerReviews.find({ workerId }, HIDE).sort({ createdAt: -1 }).lean<WorkerReview[]>()
+  const ratingCount = reviews.length
+  const ratingAverage = ratingCount
+    ? Math.round((reviews.reduce((sum, item) => sum + item.rating, 0) / ratingCount) * 10) / 10
+    : 0
+  await Workers.updateMany({ id: workerId }, { $set: { ratingAverage, ratingCount, reviews } })
+  return { reviews, ratingAverage, ratingCount }
+}
+
+export async function upsertWorkerReview(hospitalId: string, workerId: string, input: { rating: number; comment: string; contractId?: string }) {
+  const [hospital, worker] = await Promise.all([
+    getHospital(hospitalId),
+    Workers.findOne({ $or: [{ hospitalId, id: workerId }, { id: workerId }] }, HIDE).lean<Worker>(),
+  ])
+  if (!worker) throw httpError(404, 'Worker not found')
+  const existing = await WorkerReviews.findOne({ hospitalId, workerId }, HIDE).lean<WorkerReview>()
+  const now = nowIso()
+  let contractTitle = existing?.contractTitle || ''
+  if (input.contractId) {
+    const contract = await Contracts.findOne({ hospitalId, id: input.contractId, workerId }, { title: 1, _id: 0 }).lean<{ title?: string }>()
+    contractTitle = contract?.title || contractTitle
+  }
+  const review: WorkerReview = {
+    id: existing?.id || uid(),
+    workerId,
+    hospitalId,
+    hospitalName: hospital?.name || '',
+    hospitalCity: hospital?.city || '',
+    hospitalState: hospital?.state || '',
+    hospitalCountry: hospital?.country || '',
+    contractId: input.contractId || existing?.contractId,
+    contractTitle,
+    rating: input.rating,
+    comment: input.comment.trim(),
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  }
+  await WorkerReviews.updateOne({ id: review.id }, { $set: review }, { upsert: true })
+  const summary = await syncWorkerRating(workerId)
+  changed(hospitalId, 'workers')
+  return { review, ratingAverage: summary.ratingAverage, ratingCount: summary.ratingCount, reviews: summary.reviews }
 }
 
 export async function createTicket(hospitalId: string, subject: string, message: string) {

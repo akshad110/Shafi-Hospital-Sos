@@ -74,7 +74,7 @@ export async function createJob(hospitalId: string, input: JobInput) {
     updatedAt: now,
   }
   await Jobs.create(job)
-  await rememberChoices(hospitalId, job)
+  await rememberChoices(hospitalId, { department: job.department, role: job.role, location: job.location })
   changed(hospitalId, 'jobs')
   if (status === 'approved') await liveNotice(hospitalId, job)
   return job

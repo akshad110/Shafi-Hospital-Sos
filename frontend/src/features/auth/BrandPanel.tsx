@@ -13,12 +13,8 @@ export function BrandPanel() {
       <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border border-white/10" />
       <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full border border-white/10" />
       <div className="relative">
-        <div className="flex items-center gap-3">
-          <Logo className="h-11 w-11" />
-          <span>
-            <span className="block text-[15px] font-semibold">Shafi SOS</span>
-            <span className="block text-xs text-white/70">Hospital Portal</span>
-          </span>
+        <div className="inline-flex items-center rounded-2xl bg-white px-3 py-2">
+          <Logo className="h-12 w-auto max-w-[240px]" />
         </div>
         <h2 className="mt-14 max-w-md text-[40px] font-semibold leading-[1.1] tracking-tight">Get staff for the next shift.</h2>
         <p className="mt-4 max-w-sm text-[15px] leading-7 text-white/75">Ask for people, see who applied, mark who came in, and pay.</p>

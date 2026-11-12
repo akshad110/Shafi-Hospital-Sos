@@ -7,6 +7,7 @@ import type {
   Invoice,
   Job,
   Notification,
+  WorkerReview,
   Payout,
   Plan,
   Session,
@@ -140,7 +141,40 @@ export const Workers = define<Worker>('workers', {
     accountLast4: String,
     ifsc: String,
   },
+  ratingAverage: { type: Number, default: 0 },
+  ratingCount: { type: Number, default: 0 },
+  reviews: [sub({
+    id: String,
+    workerId: String,
+    hospitalId: String,
+    hospitalName: String,
+    hospitalCity: String,
+    hospitalState: String,
+    hospitalCountry: String,
+    contractId: String,
+    contractTitle: String,
+    rating: Number,
+    comment: String,
+    createdAt: String,
+    updatedAt: String,
+  })],
 }, [{ hospitalId: 1, name: 1 }])
+
+export const WorkerReviews = define<WorkerReview>('workerReviews', {
+  id,
+  workerId: { type: String, required: true, index: true },
+  hospitalId: hospitalRef,
+  hospitalName: String,
+  hospitalCity: String,
+  hospitalState: String,
+  hospitalCountry: String,
+  contractId: String,
+  contractTitle: String,
+  rating: { type: Number, min: 1, max: 5, required: true },
+  comment: { type: String, default: '' },
+  createdAt: String,
+  updatedAt: String,
+}, [{ workerId: 1, createdAt: -1 }, { hospitalId: 1, workerId: 1 }])
 
 export const Jobs = define<Job>('jobs', {
   id,
@@ -328,4 +362,4 @@ const sessionSchema: Schema = new Schema({
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
 export const Sessions = (mongoose.models.sessions ?? mongoose.model('sessions', sessionSchema, 'sessions')) as unknown as mongoose.Model<Session>
 
-export const allModels = [Users, Hospitals, Catalogs, Plans, Subscriptions, Invoices, Workers, Jobs, Applications, Contracts, Shifts, Payouts, Notifications, Tickets, Sessions]
+export const allModels = [Users, Hospitals, Catalogs, Plans, Subscriptions, Invoices, Workers, Jobs, Applications, Contracts, Shifts, Payouts, Notifications, Tickets, WorkerReviews, Sessions]

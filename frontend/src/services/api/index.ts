@@ -22,6 +22,7 @@ import type {
   Subscription,
   Worker,
   WorkerDetail,
+  WorkerReview,
 } from '../../types/domain'
 
 export async function login(email: string, password: string) {
@@ -141,6 +142,16 @@ export async function workers(q?: string) {
 export async function worker(id: string) {
   const { data } = await client.get<{ worker: WorkerDetail }>(`/hospital/workers/${id}`)
   return data.worker
+}
+
+export async function reviewWorker(id: string, body: { rating: number; comment: string; contractId?: string }) {
+  const { data } = await client.post<{
+    review: WorkerReview
+    ratingAverage: number
+    ratingCount: number
+    reviews: WorkerReview[]
+  }>(`/hospital/workers/${id}/reviews`, body)
+  return data
 }
 
 export async function subscription() {

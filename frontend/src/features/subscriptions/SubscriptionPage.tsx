@@ -83,22 +83,35 @@ export default function SubscriptionPage() {
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
           {data.plans.map((plan) => {
             const active = current.status === 'active' && plan.code === current.plan
+            const highlight = active || (plan.popular && !currentPlan)
             const period = periodLabel(plan.months)
             return (
               <article
                 key={plan.code}
                 className={cn(
-                  'relative flex min-w-0 flex-col rounded-2xl border bg-white p-4 transition-all duration-150 md:p-6',
-                  active ? 'border-brand ring-1 ring-brand' : 'border-line hover:-translate-y-0.5 hover:border-brand/60 hover:shadow-[0_12px_32px_-16px_rgba(20,36,58,0.25)]',
+                  'relative flex min-w-0 flex-col overflow-hidden rounded-2xl border-2 p-4 transition-all duration-150 md:p-6',
+                  highlight
+                    ? 'z-10 border-brand bg-gradient-to-b from-mint to-white shadow-[0_28px_56px_-20px_rgba(11,150,133,0.72)] ring-4 ring-brand/20 lg:-translate-y-2'
+                    : 'border-line-strong bg-white shadow-[0_12px_28px_-18px_rgba(20,36,58,0.3)] hover:-translate-y-1 hover:border-brand/50 hover:shadow-[0_20px_40px_-20px_rgba(20,36,58,0.38)]',
                 )}
               >
+                {highlight && <span className="absolute inset-x-0 top-0 h-1.5 bg-brand" aria-hidden />}
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-[17px] font-semibold text-ink">{plan.name}</h3>
-                  {active ? <Badge status="approved">Current plan</Badge> : plan.popular && <Badge status="offered"><Sparkles className="mr-1 h-3 w-3" />Most chosen</Badge>}
+                  <h3 className={cn('text-[17px] font-semibold', highlight ? 'text-brand-deep' : 'text-ink')}>{plan.name}</h3>
+                  {active ? (
+                    <Badge status="approved">Current plan</Badge>
+                  ) : plan.popular ? (
+                    <span className="inline-flex items-center rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white">
+                      <Sparkles className="mr-1 h-3 w-3" />Most chosen
+                    </span>
+                  ) : null}
                 </div>
-                <p className="mt-3 inline-flex w-fit items-center rounded-md bg-canvas px-2 py-0.5 text-xs font-semibold text-navy ring-1 ring-inset ring-line">{period}</p>
+                <p className={cn(
+                  'mt-3 inline-flex w-fit items-center rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset',
+                  highlight ? 'bg-white text-brand-deep ring-brand/30' : 'bg-canvas text-navy ring-line',
+                )}>{period}</p>
                 <p className="mt-3 flex items-baseline gap-1.5">
-                  <span className="text-[26px] font-semibold leading-none tracking-tight text-ink sm:text-[32px]">{money(monthlyRate(plan))}</span>
+                  <span className={cn('text-[26px] font-semibold leading-none tracking-tight sm:text-[32px]', highlight ? 'text-brand-deep' : 'text-ink')}>{money(monthlyRate(plan))}</span>
                   <span className="text-sm text-muted">/ month</span>
                 </p>
                 <p className="mt-1.5 text-sm text-muted">
@@ -114,8 +127,8 @@ export default function SubscriptionPage() {
                   ))}
                 </ul>
                 <Button
-                  className="mt-6 w-full"
-                  variant={active ? 'outline' : plan.popular ? 'primary' : 'navy'}
+                  className={cn('mt-6 w-full', highlight && !active && 'shadow-[0_10px_22px_-8px_rgba(11,150,133,0.7)]')}
+                  variant={active ? 'outline' : highlight ? 'primary' : 'navy'}
                   disabled={active}
                   onClick={() => { change.reset(); setPick(plan) }}
                 >

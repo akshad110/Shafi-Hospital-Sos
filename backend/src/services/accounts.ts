@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { HIDE, Hospitals, Jobs, Sessions, Subscriptions, Users } from '../models.js'
 import { TRIAL, trialWindow } from '../billing.js'
+import { currentSubscription } from './billing.js'
 import { catalogRoles } from '../catalog.js'
 import { changed } from '../realtime.js'
 import { httpError, includesLabel, uid } from '../lib/util.js'
@@ -90,12 +91,24 @@ export async function registerHospital(input: { hospitalName: string; email: str
   return { user, hospital }
 }
 
-const EDITABLE: (keyof Hospital)[] = ['name', 'phone', 'city', 'state', 'country', 'address', 'departments', 'representative', 'representativeRole', 'notifications']
+const EDITABLE: (keyof Hospital)[] = ['name', 'phone', 'city', 'state', 'country', 'address', 'departments', 'locations', 'representative', 'representativeRole', 'notifications']
 
 export async function updateHospital(id: string, patch: Partial<Hospital>) {
   const update: Record<string, unknown> = {}
   for (const key of EDITABLE) {
-    if (patch[key] !== undefined) update[key] = typeof patch[key] === 'string' ? (patch[key] as string).trim() : patch[key]
+    if (patch[key] === undefined) continue
+    if (key === 'locations' && Array.isArray(patch.locations)) {
+      update.locations = patch.locations.map((item) => item.trim()).filter(Boolean)
+      continue
+    }
+    update[key] = typeof patch[key] === 'string' ? (patch[key] as string).trim() : patch[key]
+  }
+  if (Array.isArray(update.locations)) {
+    const subscription = await currentSubscription(id)
+    const limit = subscription?.locationLimit ?? TRIAL.locations
+    if ((update.locations as string[]).length > limit) {
+      throw httpError(409, `Your plan allows ${limit} location${limit === 1 ? '' : 's'}. Upgrade to add more SOS sites.`)
+    }
   }
   const hospital = await Hospitals.findOneAndUpdate({ id }, { $set: update }, { new: true, projection: HIDE }).lean<Hospital>()
   if (hospital) {
@@ -110,14 +123,21 @@ export async function updateHospital(id: string, patch: Partial<Hospital>) {
   return hospital
 }
 
-export async function rememberChoices(hospitalId: string, input: { department?: string; role?: string }) {
+export async function rememberChoices(hospitalId: string, input: { department?: string; role?: string; location?: string }) {
   const department = input.department?.trim()
   const role = input.role?.trim()
+  const location = input.location?.trim()
   const hospital = await getHospital(hospitalId)
   if (!hospital) return
   const add: Record<string, string> = {}
   if (department && !includesLabel(hospital.departments, department)) add.departments = department
   if (role && !includesLabel(await catalogRoles(), role) && !includesLabel(hospital.customRoles || [], role)) add.customRoles = role
+  const sites = hospital.locations || []
+  if (location && !includesLabel(sites, location)) {
+    const subscription = await currentSubscription(hospitalId)
+    const limit = subscription?.locationLimit ?? TRIAL.locations
+    if (sites.length < limit) add.locations = location
+  }
   if (Object.keys(add).length) {
     await Hospitals.updateOne({ id: hospitalId }, { $addToSet: add })
     changed(hospitalId, 'session')

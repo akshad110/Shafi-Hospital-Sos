@@ -19,6 +19,7 @@ export const CATALOG_SEED: Catalog = {
     { q: 'Can I confirm a worker myself?', a: 'Yes. Open Applications, check their certificates, then confirm the hire or decline with a reason.' },
     { q: 'How do I ask workers for documents?', a: 'When you create a request, add each document name under Documents to upload. Workers see those names and must attach an original photo or PDF of each one.' },
     { q: 'When can I pay a worker?', a: 'Once their contract period is over and every shift has an attendance mark, the salary is ready to pay from Attendance & Payroll.' },
+    { q: 'Can I rate a worker?', a: 'Yes. Open Workers, pick the person, then add a star rating and a short comment. They can see that review in the worker SOS app.' },
     { q: 'What happens when my free trial ends?', a: 'Existing shifts continue, but you need a plan to post new requests.' },
   ],
   supportContact: { email: 'desk@shafisos.example', phone: '+91 20 4000 0000', hours: '08:00–20:00 IST, every day' },

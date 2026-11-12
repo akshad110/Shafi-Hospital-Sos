@@ -120,6 +120,25 @@ export interface Worker {
   availability: string
   payoutAccount?: PayoutAccount
   documents?: WorkerDocument[]
+  ratingAverage?: number
+  ratingCount?: number
+  reviews?: WorkerReview[]
+}
+
+export interface WorkerReview {
+  id: string
+  workerId: string
+  hospitalId: string
+  hospitalName: string
+  hospitalCity?: string
+  hospitalState?: string
+  hospitalCountry?: string
+  contractId?: string
+  contractTitle?: string
+  rating: number
+  comment: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Note {

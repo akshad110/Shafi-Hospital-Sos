@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, MapPin, Plus, Siren, Users } from 'lucide-react'
 import { cancelJob, createJob, jobs, submitJob } from '../../services/api'
-import { cn, dayLabel, errorMessage, money, unitLabel } from '../../lib/utils'
+import { cn, dayLabel, errorMessage, money, placeLabel, sosPlaces, unitLabel } from '../../lib/utils'
 import { useRoleOptions } from '../../hooks/useCatalog'
 import type { Job } from '../../types/domain'
 import { useSession } from '../../app/session'
@@ -154,7 +154,10 @@ function JobRow({ job, active, onSelect }: { job: Job; active: boolean; onSelect
         <p className="mt-1 text-sm text-muted">{job.role} · {job.department}</p>
         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
           <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{dayLabel(job.date)} · {job.startTime}–{job.endTime}</span>
-          <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{job.location}</span>
+          <span className={cn('inline-flex items-center gap-1', job.urgent && 'font-medium text-sos')}>
+            <MapPin className="h-3.5 w-3.5" />
+            {job.urgent ? `Emergency · ${job.location}` : job.location}
+          </span>
           <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" />{job.workersNeeded} needed</span>
         </p>
       </div>
@@ -184,9 +187,19 @@ function RequestDetail({ job, bare }: { job: Job; bare?: boolean }) {
       <p className="mt-1 text-sm text-muted">{job.role} · {job.department}</p>
       <p className="mt-3 text-sm leading-6 text-ink">{job.description}</p>
 
+      {job.urgent && (
+        <div className="mt-4 rounded-xl border border-sos/20 bg-sos-soft/70 px-3.5 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sos">Emergency</p>
+          <p className="mt-1.5 flex items-start gap-2 text-sm font-medium text-ink">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-sos" />
+            <span className="min-w-0 break-words">{job.location}{placeLabel(job) ? ` · ${placeLabel(job)}` : ''}</span>
+          </p>
+        </div>
+      )}
+
       <dl className="mt-4 divide-y divide-line rounded-xl border border-line text-sm">
         <Row label="When" value={`${dayLabel(job.date)} · ${job.startTime}–${job.endTime}`} />
-        <Row label="Where" value={job.location} />
+        {!job.urgent && <Row label="Where" value={job.location} />}
         <Row label="People" value={`${job.workersNeeded}`} />
         <Row label="Pay" value={`${money(job.amount)}${unitLabel(job.paymentUnit)}`} />
         {job.payRules && (
@@ -263,7 +276,7 @@ function QuickSos({ open, onClose }: { open: boolean; onClose: () => void }) {
     endTime: '19:00',
     skills: 'ACLS',
     amount: '1000',
-    location: hospital.address,
+    location: hospital.locations?.[0] || hospital.address,
     notes: '',
   }
   const [form, setForm] = useState(blank)
@@ -345,6 +358,25 @@ function QuickSos({ open, onClose }: { open: boolean; onClose: () => void }) {
               <Field label="To"><TimeInput required value={form.endTime} onChange={(event) => set('endTime', event.target.value)} /></Field>
             </div>
           </div>
+          <Field label="Emergency location">
+            <ChoiceSelect
+              required
+              value={form.location}
+              onChange={(value) => set('location', value)}
+              options={sosPlaces(hospital)}
+              otherLabel="Other location"
+              otherPlaceholder="Ward, floor or campus"
+            />
+          </Field>
+          {form.location.trim() && (
+            <div className="rounded-xl border border-sos/20 bg-sos-soft/70 px-3.5 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sos">Emergency</p>
+              <p className="mt-1.5 flex items-start gap-2 text-sm font-medium text-ink">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-sos" />
+                <span className="min-w-0 break-words">{form.location}{placeLabel(hospital) ? ` · ${placeLabel(hospital)}` : ''}</span>
+              </p>
+            </div>
+          )}
           {mutation.isError && <p className="text-sm font-medium text-danger">{errorMessage(mutation.error)}</p>}
           <Button type="submit" variant="sos" className="w-full" disabled={mutation.isPending}>{mutation.isPending ? 'Sending…' : 'Send request'}</Button>
         </form>
