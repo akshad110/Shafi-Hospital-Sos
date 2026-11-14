@@ -21,6 +21,10 @@ export interface Hospital {
   customRoles?: string[]
   locations: string[]
   verified: boolean
+  verificationStatus?: 'pending' | 'approved' | 'rejected'
+  submittedAt?: string
+  reviewedAt?: string
+  rejectionReason?: string
   representative: string
   representativeRole: string
   plan: 'trial' | PlanCode

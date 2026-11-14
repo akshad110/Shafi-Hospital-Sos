@@ -16,6 +16,7 @@ import type {
   Ticket,
   User,
   Worker,
+  HospitalDocument,
 } from './types.js'
 
 export const HIDE = { _id: 0 } as const
@@ -66,6 +67,10 @@ export const Hospitals = define<Hospital>('hospitals', {
   customRoles: { type: [String], default: [] },
   locations: [String],
   verified: { type: Boolean, default: false },
+  verificationStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', index: true },
+  submittedAt: String,
+  reviewedAt: String,
+  rejectionReason: { type: String, default: '' },
   representative: { type: String, default: '' },
   representativeRole: { type: String, default: '' },
   plan: { type: String, default: 'trial' },
@@ -78,7 +83,19 @@ export const Hospitals = define<Hospital>('hospitals', {
     billing: { type: Boolean, default: true },
   },
   permissions: [String],
-}, [{ country: 1, state: 1, city: 1 }])
+}, [{ country: 1, state: 1, city: 1 }, { verificationStatus: 1, submittedAt: -1 }])
+
+export const HospitalDocuments = define<HospitalDocument>('hospitalDocuments', {
+  id,
+  hospitalId: hospitalRef,
+  kind: { type: String, required: true },
+  label: String,
+  fileName: String,
+  contentType: String,
+  size: Number,
+  data: { type: Buffer, required: true, select: false },
+  uploadedAt: String,
+}, [{ hospitalId: 1, kind: 1 }])
 
 export const Catalogs = define<CatalogEntry>('catalogs', {
   key: { type: String, required: true, unique: true },
@@ -362,4 +379,4 @@ const sessionSchema: Schema = new Schema({
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
 export const Sessions = (mongoose.models.sessions ?? mongoose.model('sessions', sessionSchema, 'sessions')) as unknown as mongoose.Model<Session>
 
-export const allModels = [Users, Hospitals, Catalogs, Plans, Subscriptions, Invoices, Workers, Jobs, Applications, Contracts, Shifts, Payouts, Notifications, Tickets, WorkerReviews, Sessions]
+export const allModels = [Users, Hospitals, HospitalDocuments, Catalogs, Plans, Subscriptions, Invoices, Workers, Jobs, Applications, Contracts, Shifts, Payouts, Notifications, Tickets, WorkerReviews, Sessions]

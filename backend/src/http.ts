@@ -1,8 +1,10 @@
 import type { NextFunction, Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
+import multer from 'multer'
 import { ZodError } from 'zod'
 import { config } from './config.js'
-import { findUserById, getHospital } from './services/accounts.js'
+import type { HttpError } from './lib/util.js'
+import { findUserById, getHospital, hospitalStatus } from './services/accounts.js'
 
 export interface AuthedRequest extends Request {
   userId?: string
@@ -56,6 +58,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       res.status(401).json({ message: 'Session is no longer valid' })
       return
     }
+    const status = hospitalStatus(hospital)
+    if (status !== 'approved') {
+      res.status(403).json({
+        message: status === 'rejected'
+          ? 'This registration was not approved. Check your email for details.'
+          : 'Your hospital is still under review. We will email a password once it is approved.',
+        code: status === 'rejected' ? 'hospital_rejected' : 'hospital_pending',
+      })
+      return
+    }
     const authed = req as AuthedRequest
     authed.userId = user.id
     authed.hospitalId = hospital.id
@@ -66,15 +78,32 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 }
 
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!config.adminApiKey) {
+    res.status(503).json({ message: 'Admin review is not configured. Set ADMIN_API_KEY.' })
+    return
+  }
+  const key = String(req.header('x-admin-key') || '')
+  if (key !== config.adminApiKey) {
+    res.status(401).json({ message: 'Admin key is incorrect' })
+    return
+  }
+  next()
+}
+
 export function asyncHandler(fn: (req: AuthedRequest, res: Response, next: NextFunction) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => {
     fn(req as AuthedRequest, res, next).catch(next)
   }
 }
 
-export function errorHandler(error: Error & { status?: number; code?: number }, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(error: Error & { status?: number; code?: number | string; issue?: string }, _req: Request, res: Response, _next: NextFunction) {
   if (error instanceof ZodError) {
     res.status(400).json({ message: error.issues[0]?.message || 'Check the form and try again' })
+    return
+  }
+  if (error instanceof multer.MulterError) {
+    res.status(400).json({ message: error.code === 'LIMIT_FILE_SIZE' ? 'Each file must be under 4 MB' : 'Could not upload that file' })
     return
   }
   if (error.code === 11000) {
@@ -83,5 +112,8 @@ export function errorHandler(error: Error & { status?: number; code?: number }, 
   }
   const status = error.status || 500
   if (status === 500) console.error(error)
-  res.status(status).json({ message: status === 500 ? 'Something went wrong' : error.message })
+  const body: { message: string; code?: string } = { message: status === 500 ? 'Something went wrong' : error.message }
+  const issue = (error as HttpError).issue
+  if (issue) body.code = issue
+  res.status(status).json(body)
 }

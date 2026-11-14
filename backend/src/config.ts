@@ -11,13 +11,22 @@ function origins() {
     .filter(Boolean)
 }
 
+const clientOrigins = origins()
+
 export const config = {
   production,
   port: Number(process.env.PORT || 5000),
   accessSecret: process.env.JWT_ACCESS_SECRET || 'dev-access-secret-change-me',
   refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-me',
   mongoUri: process.env.MONGODB_URI || '',
-  clientOrigins: origins(),
+  clientOrigins,
+  appUrl: (process.env.APP_URL || clientOrigins[0] || 'http://localhost:5173').replace(/\/$/, ''),
+  adminApiKey: process.env.ADMIN_API_KEY || (production ? '' : 'dev-admin-key'),
+  smtpHost: process.env.SMTP_HOST || '',
+  smtpPort: Number(process.env.SMTP_PORT || 587),
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPass: process.env.SMTP_PASS || '',
+  mailFrom: process.env.MAIL_FROM || 'Shafi SOS <noreply@shafisos.example>',
   cookieSecure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : production,
   cookieSameSite: (process.env.COOKIE_SAMESITE || (production ? 'none' : 'lax')) as 'lax' | 'strict' | 'none',
   autoSeed: process.env.AUTO_SEED === 'true' || (!production && process.env.AUTO_SEED !== 'false'),

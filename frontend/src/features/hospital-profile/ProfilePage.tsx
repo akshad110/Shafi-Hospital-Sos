@@ -94,7 +94,7 @@ export default function ProfilePage() {
           </div>
         </div>
         <dl className="grid grid-cols-2 border-t border-line bg-canvas/60 text-sm lg:grid-cols-4">
-          <Fact label="Representative" value={hospital.representative ? `${hospital.representative}${hospital.representativeRole ? ` · ${hospital.representativeRole}` : ''}` : '—'} />
+          <Fact label="Administrator" value={hospital.representative ? `${hospital.representative}${hospital.representativeRole ? ` · ${hospital.representativeRole}` : ''}` : '—'} />
           <Fact label="Phone" value={hospital.phone || '—'} />
           <Fact label="Departments" value={hospital.departments.length ? `${hospital.departments.length} listed` : '—'} />
           <Fact label="Location" value={placeLabel(hospital) || '—'} />
@@ -122,8 +122,8 @@ export default function ProfilePage() {
           <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5 md:p-6">
             <Field label="Hospital name"><TextInput required value={form.name} onChange={(event) => set('name', event.target.value)} /></Field>
             <Field label="Phone"><TextInput required value={form.phone} onChange={(event) => set('phone', event.target.value)} /></Field>
-            <Field label="Authorised representative"><TextInput value={form.representative} onChange={(event) => set('representative', event.target.value)} /></Field>
-            <Field label="Representative role"><TextInput value={form.representativeRole} onChange={(event) => set('representativeRole', event.target.value)} /></Field>
+            <Field label="Hospital administrator"><TextInput value={form.representative} onChange={(event) => set('representative', event.target.value)} /></Field>
+            <Field label="Administrator role"><TextInput value={form.representativeRole} onChange={(event) => set('representativeRole', event.target.value)} /></Field>
             <Field label="City"><TextInput required autoComplete="address-level2" value={form.city} onChange={(event) => set('city', event.target.value)} /></Field>
             <Field label="State"><TextInput required autoComplete="address-level1" value={form.state} onChange={(event) => set('state', event.target.value)} /></Field>
             <Field label="Country"><TextInput required autoComplete="country-name" value={form.country} onChange={(event) => set('country', event.target.value)} /></Field>

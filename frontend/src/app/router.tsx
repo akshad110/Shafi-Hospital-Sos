@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { SessionGate } from './session'
 import { AppShell } from '../components/layout/AppShell'
 import { LoginPage } from '../features/auth/LoginPage'
+import { ForgotPasswordPage, ResetPasswordPage } from '../features/auth/PasswordPages'
 import { SignupPage } from '../features/auth/SignupPage'
 import { PageSkeleton } from '../components/ui/States'
 
@@ -19,12 +20,22 @@ const SubscriptionPage = lazy(() => import('../features/subscriptions/Subscripti
 const NotificationsPage = lazy(() => import('../features/notifications/NotificationsPage'))
 const ProfilePage = lazy(() => import('../features/hospital-profile/ProfilePage'))
 const HelpPage = lazy(() => import('../features/settings/HelpPage'))
+const HospitalReviewPage = lazy(() => import('../features/admin/HospitalReviewPage'))
 
 function Screen({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
 }
 
 export function AppRouter() {
+  return (
+    <Routes>
+      <Route path="/admin/hospitals" element={<Screen><HospitalReviewPage /></Screen>} />
+      <Route path="*" element={<HospitalApp />} />
+    </Routes>
+  )
+}
+
+function HospitalApp() {
   return (
     <SessionGate login={<AuthRoutes />}>
       <Routes>
@@ -53,6 +64,8 @@ function AuthRoutes() {
   return (
     <Routes>
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="*" element={<LoginPage />} />
     </Routes>
   )

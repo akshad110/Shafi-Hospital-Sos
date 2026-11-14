@@ -5,6 +5,7 @@ import helmet from 'helmet'
 import mongoose from 'mongoose'
 import { config } from './config.js'
 import { errorHandler, requireAuth } from './http.js'
+import { adminRouter } from './routes/admin.js'
 import { authRouter } from './routes/auth.js'
 import { hospitalRouter } from './routes/hospital.js'
 import { notificationsRouter } from './routes/notifications.js'
@@ -25,6 +26,7 @@ export function createApp() {
   app.get('/health', health)
   app.get('/api/v1/health', health)
 
+  app.use('/api/v1', adminRouter)
   app.use('/api/v1', authRouter)
   app.use('/api/v1', requireAuth, hospitalRouter, payrollRouter, notificationsRouter)
   app.use('/api/v1', (_req, res) => {

@@ -1,10 +1,11 @@
 import { randomUUID } from 'crypto'
 
-export type HttpError = Error & { status?: number }
+export type HttpError = Error & { status?: number; issue?: string }
 
-export function httpError(status: number, message: string): HttpError {
+export function httpError(status: number, message: string, issue?: string): HttpError {
   const error = new Error(message) as HttpError
   error.status = status
+  if (issue) error.issue = issue
   return error
 }
 

@@ -18,6 +18,7 @@ export interface PayRules {
 }
 export type PayoutMethod = 'bank_transfer' | 'upi' | 'cash' | 'cheque'
 export type NotificationCategory = 'applications' | 'reviews' | 'shifts' | 'payroll' | 'billing' | 'system'
+export type HospitalVerification = 'pending' | 'approved' | 'rejected'
 
 export interface User {
   id: string
@@ -48,12 +49,28 @@ export interface Hospital {
   customRoles: string[]
   locations: string[]
   verified: boolean
+  verificationStatus?: HospitalVerification
+  submittedAt?: string
+  reviewedAt?: string
+  rejectionReason?: string
   representative: string
   representativeRole: string
   plan: SubscriptionPlan
   renewalDate: string
   notifications: NotificationPrefs
   permissions: string[]
+}
+
+export interface HospitalDocument {
+  id: string
+  hospitalId: string
+  kind: string
+  label: string
+  fileName: string
+  contentType: string
+  size: number
+  data?: Buffer
+  uploadedAt: string
 }
 
 export interface Job {

@@ -20,6 +20,11 @@ export function errorMessage(error: unknown, fallback = 'Something went wrong. P
   return fallback
 }
 
+export function errorCode(error: unknown) {
+  if (!axios.isAxiosError(error)) return ''
+  return String((error.response?.data as { code?: string } | undefined)?.code || '')
+}
+
 export function greeting(name: string) {
   const hour = new Date().getHours()
   const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'

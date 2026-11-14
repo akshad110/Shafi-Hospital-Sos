@@ -1,4 +1,5 @@
 import { client, writeAccessToken } from './client'
+import type { KycRequirements } from '../../lib/hospitalKyc'
 import type {
   Application,
   AttendanceStatus,
@@ -31,10 +32,14 @@ export async function login(email: string, password: string) {
   return data.user
 }
 
-export async function register(body: Record<string, string>) {
-  const { data } = await client.post<{ user: SessionUser; accessToken?: string }>('/auth/register', body)
-  writeAccessToken(data.accessToken)
-  return data.user
+export async function register(body: FormData) {
+  const { data } = await client.post<{ ok: boolean; status: string; message: string }>('/auth/register', body, { timeout: 120000 })
+  return data
+}
+
+export async function registerRequirements() {
+  const { data } = await client.get<KycRequirements>('/auth/register/requirements')
+  return data
 }
 
 export async function logout() {
@@ -43,6 +48,15 @@ export async function logout() {
   } finally {
     writeAccessToken()
   }
+}
+
+export async function forgotPassword(email: string) {
+  const { data } = await client.post<{ ok: boolean; message: string }>('/auth/forgot-password', { email })
+  return data
+}
+
+export async function resetPassword(token: string, password: string) {
+  await client.post('/auth/reset-password', { token, password })
 }
 
 export async function changePassword(current: string, next: string) {

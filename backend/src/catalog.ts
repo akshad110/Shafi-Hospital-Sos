@@ -21,6 +21,7 @@ export const CATALOG_SEED: Catalog = {
     { q: 'When can I pay a worker?', a: 'Once their contract period is over and every shift has an attendance mark, the salary is ready to pay from Attendance & Payroll.' },
     { q: 'Can I rate a worker?', a: 'Yes. Open Workers, pick the person, then add a star rating and a short comment. They can see that review in the worker SOS app.' },
     { q: 'What happens when my free trial ends?', a: 'Existing shifts continue, but you need a plan to post new requests.' },
+    { q: 'When can I sign in after registering?', a: 'After you submit hospital details and licences, our team reviews the application. You cannot sign in until it is approved. We then email a password to the hospital administrator. If the application is not approved, that email explains why.' },
   ],
   supportContact: { email: 'desk@shafisos.example', phone: '+91 20 4000 0000', hours: '08:00–20:00 IST, every day' },
   payoutMethods: [

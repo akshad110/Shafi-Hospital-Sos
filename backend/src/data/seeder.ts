@@ -3,6 +3,7 @@ import {
   Applications,
   Catalogs,
   Contracts,
+  HospitalDocuments,
   Hospitals,
   Invoices,
   Jobs,
@@ -30,6 +31,7 @@ export async function seedDatabase() {
   const targets: [Model<any>, unknown[]][] = [
     [Users, seed.users],
     [Hospitals, seed.hospitals],
+    [HospitalDocuments, []],
     [Catalogs, seed.catalogs],
     [Plans, seed.plans],
     [Subscriptions, seed.subscriptions],
@@ -60,20 +62,24 @@ const DEMO_CERTS: Record<string, string[]> = {
 }
 
 export async function ensureHospitalHiring() {
-  await Plans.updateOne({ code: 'starter' }, { $set: { price: PLAN_MONTHLY.starter, months: 1 } })
-  await Plans.updateOne({ code: 'professional' }, { $set: { price: PLAN_MONTHLY.professional * 6, months: 6 } })
-  await Plans.updateOne({ code: 'enterprise' }, { $set: { price: PLAN_MONTHLY.enterprise * 12, months: 12 } })
+  await Plans.updateOne({ code: 'starter', adminManaged: { $ne: true } }, { $set: { price: PLAN_MONTHLY.starter, months: 1 } })
+  await Plans.updateOne({ code: 'professional', adminManaged: { $ne: true } }, { $set: { price: PLAN_MONTHLY.professional * 6, months: 6 } })
+  await Plans.updateOne({ code: 'enterprise', adminManaged: { $ne: true } }, { $set: { price: PLAN_MONTHLY.enterprise * 12, months: 12 } })
   await Workers.updateMany({ certifications: { $exists: false } }, { $set: { certifications: [] } })
   await Applications.updateMany({ messages: { $exists: false } }, { $set: { messages: [] } })
   await Applications.updateMany({ documentReviews: { $exists: false } }, { $set: { documentReviews: [] } })
   await Workers.updateMany({ documents: { $exists: false } }, { $set: { documents: [] } })
   await Catalogs.updateOne({ key: 'documentRejectReasons' }, { $set: { key: 'documentRejectReasons', value: CATALOG_SEED.documentRejectReasons } }, { upsert: true })
-  await Jobs.updateMany({ status: 'pending_review' }, { $set: { status: 'approved' } })
+  await Jobs.updateMany({ status: 'pending_review', adminLocked: { $ne: true } }, { $set: { status: 'approved' } })
   await Jobs.updateMany({ requiredDocuments: { $exists: false } }, { $set: { requiredDocuments: [] } })
   await Applications.updateMany({ uploads: { $exists: false } }, { $set: { uploads: [] } })
   await Catalogs.updateOne({ key: 'documentRequests' }, { $set: { key: 'documentRequests', value: CATALOG_SEED.documentRequests } }, { upsert: true })
   await Catalogs.updateOne({ key: 'faqs' }, { $set: { value: CATALOG_SEED.faqs } }, { upsert: true })
   await Hospitals.updateOne({ id: 'h-city' }, { $set: { city: 'Pune', state: 'Maharashtra', country: 'India' } })
+  await Hospitals.updateMany(
+    { verificationStatus: { $exists: false } },
+    { $set: { verificationStatus: 'approved', verified: true } },
+  )
   await Hospitals.updateMany({ state: { $exists: false } }, { $set: { state: '' } })
   await Hospitals.updateMany({ country: { $exists: false } }, { $set: { country: '' } })
   const places = await Hospitals.find({}, { id: 1, city: 1, state: 1, country: 1, _id: 0 }).lean<{ id: string; city?: string; state?: string; country?: string }[]>()

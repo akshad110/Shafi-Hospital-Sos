@@ -49,7 +49,7 @@ client.interceptors.response.use(
   async (error) => {
     const original = error.config
     const url = String(original?.url || '')
-    if (error.response?.status === 401 && original && !original._retry && !url.includes('/auth/')) {
+    if (error.response?.status === 401 && original && !original._retry && !url.includes('/auth/') && !url.includes('/admin/')) {
       original._retry = true
       try {
         await refreshSession()
