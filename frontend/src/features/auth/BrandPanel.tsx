@@ -19,12 +19,12 @@ export function AuthLayout({
   mainClassName?: string
 }) {
   return (
-    <div className={cn('min-h-screen bg-navy lg:grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)]', className)}>
+    <div className={cn('min-h-screen bg-navy lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.14fr)]', className)}>
       <BrandPanel />
       <main
         className={cn(
           'relative z-[1] flex min-h-screen min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:py-10',
-          'lg:-ml-24 lg:rounded-l-[50vh] lg:pl-24 lg:pr-10 lg:shadow-[-32px_0_64px_rgba(8,20,50,0.2)]',
+          'lg:-ml-24 lg:pl-40 lg:pr-8 lg:[clip-path:ellipse(86%_88%_at_100%_50%)] lg:[filter:drop-shadow(-16px_0_24px_rgba(8,20,50,0.14))]',
           mainClassName,
         )}
       >

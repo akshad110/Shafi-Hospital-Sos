@@ -8,17 +8,13 @@ import { Field, TextInput } from '../../components/ui/Field'
 import { Logo } from '../../components/ui/Logo'
 import { AuthLayout } from './BrandPanel'
 
-const DEMO = import.meta.env.DEV
-const DEMO_EMAIL = 'admin@cityhospital.com'
-const DEMO_PASSWORD = 'Hospital@123'
-
 export function LoginPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [params] = useSearchParams()
   const registered = params.get('registered') === '1'
-  const [email, setEmail] = useState(DEMO && !registered ? DEMO_EMAIL : '')
-  const [password, setPassword] = useState(DEMO && !registered ? DEMO_PASSWORD : '')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState(registered
     ? 'Application received. You cannot sign in until we verify the hospital. A password will be emailed to the administrator after approval.'
@@ -70,11 +66,6 @@ export function LoginPage() {
             <Button type="submit" className="h-12 w-full" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</Button>
           </form>
 
-          {DEMO && (
-            <div className="mt-6 rounded-xl border border-line bg-white px-4 py-3 text-xs leading-5 text-muted">
-              <span className="font-semibold text-ink">Local demo account</span> · {DEMO_EMAIL} · {DEMO_PASSWORD}
-            </div>
-          )}
           <p className="mt-6 text-sm text-muted">
             New hospital? <Link to="/signup" className="font-semibold text-brand-deep underline-offset-4 hover:text-brand hover:underline">Register your organisation</Link>
           </p>
