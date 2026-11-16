@@ -19,8 +19,9 @@ export default function DashboardPage() {
   const planQuery = useQuery({ queryKey: ['subscription'], queryFn: subscription })
   const payQuery = useQuery({ queryKey: ['contracts'], queryFn: () => contracts() })
 
-  if (jobQuery.isLoading || appQuery.isLoading || shiftQuery.isLoading) return <PageSkeleton />
-  if (jobQuery.isError || appQuery.isError || shiftQuery.isError) {
+  const waiting = (jobQuery.isPending && !jobQuery.data) || (appQuery.isPending && !appQuery.data) || (shiftQuery.isPending && !shiftQuery.data)
+  if (waiting) return <PageSkeleton />
+  if ((jobQuery.isError && !jobQuery.data) || (appQuery.isError && !appQuery.data) || (shiftQuery.isError && !shiftQuery.data)) {
     return <ErrorState message="The dashboard could not load." onRetry={() => { jobQuery.refetch(); appQuery.refetch(); shiftQuery.refetch() }} />
   }
 

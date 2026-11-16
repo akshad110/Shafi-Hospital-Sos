@@ -22,7 +22,7 @@ export default function ContractPage() {
   const query = useQuery({ queryKey: ['contract', id], queryFn: () => contract(id) })
   const [paying, setPaying] = useState(false)
 
-  if (query.isLoading) return <PageSkeleton />
+  if (query.isPending && !query.data) return <PageSkeleton />
   if (query.isError || !query.data) return <ErrorState message={errorMessage(query.error, 'Contract not found')} onRetry={() => query.refetch()} />
   const item = query.data
 

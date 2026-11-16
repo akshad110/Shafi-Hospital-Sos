@@ -1,10 +1,12 @@
-import { createContext, useContext } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { createContext, useContext, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { session } from '../services/api'
+import { markSignedIn, writeAccessToken } from '../services/api/client'
 import { isConnectionError } from '../lib/utils'
 import { Logo } from '../components/ui/Logo'
 import { RealtimeProvider } from './realtime'
+import { clearQueryCache, prefetchHospital, prefetchRoutes } from './cache'
 import type { Hospital, SessionUser } from '../types/domain'
 
 interface SessionValue {
@@ -21,9 +23,31 @@ export function useSession() {
 }
 
 export function SessionGate({ children, login }: { children: React.ReactNode; login: React.ReactNode }) {
-  const me = useQuery({ queryKey: ['session'], queryFn: session, retry: false })
+  const queryClient = useQueryClient()
+  const me = useQuery({
+    queryKey: ['session'],
+    queryFn: session,
+    retry: false,
+    staleTime: 5 * 60_000,
+  })
 
-  if (me.isLoading) {
+  useEffect(() => {
+    if (!me.data) return
+    markSignedIn(true)
+    prefetchHospital(queryClient)
+    prefetchRoutes()
+  }, [me.data, queryClient])
+
+  useEffect(() => {
+    if (!me.isError || !axios.isAxiosError(me.error) || me.error.response?.status !== 401) return
+    writeAccessToken()
+    clearQueryCache()
+    queryClient.removeQueries({ queryKey: ['session'] })
+  }, [me.isError, me.error, queryClient])
+
+  const unauthorized = me.isError && axios.isAxiosError(me.error) && me.error.response?.status === 401
+
+  if (me.isLoading && !me.data) {
     return (
       <div className="grid min-h-screen place-items-center bg-canvas">
         <div className="flex flex-col items-center gap-3">
@@ -35,7 +59,7 @@ export function SessionGate({ children, login }: { children: React.ReactNode; lo
     )
   }
 
-  if (me.isError && !(axios.isAxiosError(me.error) && me.error.response?.status === 401)) {
+  if (me.isError && !unauthorized && !me.data) {
     const offline = isConnectionError(me.error)
     return (
       <div className="grid min-h-screen place-items-center bg-canvas px-6">
@@ -52,7 +76,7 @@ export function SessionGate({ children, login }: { children: React.ReactNode; lo
     )
   }
 
-  if (!me.data) return login
+  if (!me.data || unauthorized) return login
 
   return (
     <SessionContext.Provider value={me.data}>

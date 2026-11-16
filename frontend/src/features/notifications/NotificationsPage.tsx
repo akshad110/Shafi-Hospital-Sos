@@ -46,7 +46,7 @@ export default function NotificationsPage() {
   const readAll = useMutation({ mutationFn: () => markAllRead(category || undefined), onSettled: refresh })
   const clear = useMutation({ mutationFn: clearReadNotices, onSettled: refresh })
 
-  if (query.isLoading) return <PageSkeleton />
+  if (query.isPending && !query.data) return <PageSkeleton />
   if (query.isError || !query.data) return <ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} />
 
   const notes = query.data

@@ -31,8 +31,8 @@ export default function AttendancePage() {
     setParams({ id }, { replace: true })
   }
 
-  if (query.isLoading) return <PageSkeleton />
-  if (query.isError) return <ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} />
+  if (query.isPending && !query.data) return <PageSkeleton />
+  if (query.isError && !query.data) return <ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} />
 
   const showList = wide || !selectedId
   const showRegister = Boolean(selectedId)

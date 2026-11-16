@@ -42,7 +42,7 @@ export default function SubscriptionPage() {
   })
 
   const data = planQuery.data
-  if (planQuery.isLoading) return <PageSkeleton />
+  if (planQuery.isPending && !data) return <PageSkeleton />
   if (planQuery.isError || !data?.subscription) return <ErrorState message={errorMessage(planQuery.error, 'No subscription on file')} onRetry={() => planQuery.refetch()} />
 
   const current = data.subscription

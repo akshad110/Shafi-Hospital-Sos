@@ -6,6 +6,7 @@ import { Bell, ChevronDown, CreditCard, LifeBuoy, LogOut, Menu, UserRound } from
 import { cn, initials, PLAN_LABEL } from '../../lib/utils'
 import { Logo } from '../ui/Logo'
 import { logout } from '../../services/api'
+import { clearQueryCache } from '../../app/cache'
 import { useLiveStatus } from '../../app/realtime'
 import type { Hospital } from '../../types/domain'
 
@@ -26,6 +27,7 @@ export function Topbar({ hospital, unread, onMenu }: { hospital: Hospital; unrea
     mutationFn: logout,
     onSettled: () => {
       queryClient.clear()
+      clearQueryCache()
       window.location.href = '/login'
     },
   })

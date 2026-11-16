@@ -59,7 +59,6 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     socket.on('connect', () => {
       setStatus('live')
-      queue(Object.keys(ENTITY_KEYS).flatMap((entity) => ENTITY_KEYS[entity]))
     })
     socket.on('disconnect', () => setStatus('offline'))
     socket.io.on('reconnect_attempt', () => setStatus('connecting'))

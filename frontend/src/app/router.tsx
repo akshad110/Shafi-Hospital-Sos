@@ -5,9 +5,8 @@ import { AppShell } from '../components/layout/AppShell'
 import { LoginPage } from '../features/auth/LoginPage'
 import { ForgotPasswordPage, ResetPasswordPage } from '../features/auth/PasswordPages'
 import { SignupPage } from '../features/auth/SignupPage'
+import DashboardPage from '../features/dashboard/DashboardPage'
 import { PageSkeleton } from '../components/ui/States'
-
-const DashboardPage = lazy(() => import('../features/dashboard/DashboardPage'))
 const FindSosPage = lazy(() => import('../features/find-sos/FindSosPage'))
 const CreateRequestPage = lazy(() => import('../features/staffing-requests/CreateRequestPage'))
 const ApplicationsPage = lazy(() => import('../features/applications/ApplicationsPage'))
@@ -40,7 +39,7 @@ function HospitalApp() {
     <SessionGate login={<AuthRoutes />}>
       <Routes>
         <Route element={<AppShell />}>
-          <Route path="/" element={<Screen><DashboardPage /></Screen>} />
+          <Route path="/" element={<DashboardPage />} />
           <Route path="/find" element={<Screen><FindSosPage /></Screen>} />
           <Route path="/requests/new" element={<Screen><CreateRequestPage /></Screen>} />
           <Route path="/applications" element={<Screen><ApplicationsPage /></Screen>} />
