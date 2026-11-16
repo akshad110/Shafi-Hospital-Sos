@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Check, ChevronLeft, ChevronRight, CircleAlert, FileText } from 'lucide-react'
+import { BadgeCheck, Check, ChevronLeft, ChevronRight, CircleAlert, Download, Eye, FileText } from 'lucide-react'
 import {
   application,
   applications,
@@ -14,7 +14,7 @@ import { cn, dayLabel, errorMessage, initials, money, STATUS_LABEL, unitLabel, w
 import { useCatalog } from '../../hooks/useCatalog'
 import { useDebounced } from '../../hooks/useDebounced'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
-import type { Application, WorkerDocument } from '../../types/domain'
+import type { Application, DocumentReview, WorkerDocument } from '../../types/domain'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card, rowClass } from '../../components/ui/Card'
@@ -22,7 +22,7 @@ import { Chip } from '../../components/ui/Chip'
 import { DateInput, Field, SearchInput, Select, TextArea, TextInput } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { EmptyState, ErrorState, Skeleton } from '../../components/ui/States'
+import { ErrorState, Skeleton } from '../../components/ui/States'
 
 const filters = ['', 'under_review', 'needs_update', 'shortlisted', 'offered', 'confirmed', 'rejected']
 const PAGE_SIZE = 8
@@ -81,101 +81,108 @@ export default function ApplicationsPage() {
 
   const items = query.data?.items || []
   const activeId = selectedId || (wide ? items[0]?.id : '')
+  const filtered = Boolean(term || status)
+  const total = query.data?.total || 0
 
   return (
-    <div className="space-y-6">
+    <div>
       <PageHeader
         eyebrow="Applications"
         title="Who applied"
         description="Check certificates, then confirm the hire, ask for an update, or decline."
       />
 
-      <Card className="p-3 md:p-4">
+      <div className="sticky top-14 z-10 -mx-3 mt-5 border-b border-line bg-white/95 px-3 py-3 shadow-[0_8px_24px_-18px_rgba(20,36,58,0.45)] backdrop-blur-md sm:top-16 sm:-mx-4 sm:px-4 md:-mx-8 md:px-8 xl:-mx-10 xl:px-10">
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <div className="w-full md:w-72">
+          <div className="w-full md:w-72 md:shrink-0">
             <SearchInput value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} placeholder="Search by worker name" aria-label="Search applications" />
           </div>
-          <div className="flex min-w-0 flex-wrap gap-2">
+          <div className="no-scrollbar flex min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-0.5">
             {filters.map((item) => (
               <Chip key={item || 'all'} active={status === item} onClick={() => { update('status', item); setPage(1) }}>
                 {item ? STATUS_LABEL[item] : 'All'}
               </Chip>
             ))}
           </div>
+          {query.data && (
+            <p className="hidden shrink-0 text-xs font-medium text-muted lg:block">
+              {total} {total === 1 ? 'application' : 'applications'}
+            </p>
+          )}
         </div>
-      </Card>
+      </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mt-5 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-6">
         <Card className="overflow-hidden">
-          {query.isLoading && <div className="space-y-3 p-4">{[0, 1, 2].map((key) => <Skeleton key={key} className="h-14" />)}</div>}
+          {query.isLoading && <div className="space-y-3 p-4">{[0, 1, 2].map((key) => <Skeleton key={key} className="h-16" />)}</div>}
           {query.isError && <div className="p-4"><ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} /></div>}
-          {query.data && items.length === 0 && <EmptyState title="No applications yet" body="People show up here after they apply to your request." />}
+          {query.data && items.length === 0 && (
+            <div className="flex flex-col items-center px-6 py-14 text-center sm:py-16">
+              <span className="grid h-16 w-16 place-items-center rounded-2xl bg-mint text-brand-deep ring-1 ring-inset ring-brand/20">
+                <FileText className="h-7 w-7" />
+              </span>
+              <h3 className="mt-4 text-lg font-semibold tracking-tight text-ink">{filtered ? 'No matching applications' : 'No applications yet'}</h3>
+              <p className="mt-1.5 max-w-sm text-sm leading-6 text-muted">
+                {filtered
+                  ? 'Try another name or a different status filter.'
+                  : 'People show up here after they apply to one of your requests.'}
+              </p>
+              <div className="mt-5">
+                {filtered ? (
+                  <Button variant="outline" onClick={() => { setQ(''); update('status'); setPage(1) }}>Clear search and filters</Button>
+                ) : (
+                  <Link to="/find"><Button>View your requests</Button></Link>
+                )}
+              </div>
+            </div>
+          )}
 
           {items.length > 0 && (
             <>
-              <table className="hidden w-full text-left text-sm md:table">
-                <thead className="border-b border-line bg-canvas/70 text-xs text-muted">
-                  <tr>
-                    <th className="px-5 py-3 font-semibold">Worker</th>
-                    <th className="px-4 py-3 font-semibold">Request</th>
-                    <th className="px-4 py-3 font-semibold">Status</th>
-                    <th className="px-4 py-3 font-semibold">Applied</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {items.map((item) => {
-                    const active = activeId === item.id
-                    return (
-                      <tr
-                        key={item.id}
-                        tabIndex={0}
+              <ul className="divide-y divide-line">
+                {items.map((item) => {
+                  const active = activeId === item.id
+                  return (
+                    <li key={item.id}>
+                      <button
+                        type="button"
                         onClick={() => update('id', item.id)}
-                        onKeyDown={(event) => { if (event.key === 'Enter') update('id', item.id) }}
-                        className={cn('group cursor-pointer outline-none focus-visible:bg-mint/60', active ? 'bg-mint/60 shadow-[inset_3px_0_0_#0B9685]' : rowClass)}
+                        className={cn(
+                          'flex w-full items-start gap-3 px-4 py-4 text-left outline-none transition-colors md:px-5',
+                          active ? 'bg-mint/50 shadow-[inset_3px_0_0_#0B9685]' : rowClass,
+                        )}
                       >
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-navy/10 text-xs font-bold text-navy">{initials(item.workerName)}</span>
-                            <div className="min-w-0">
-                              <p className={cn('flex items-center gap-1 font-semibold', active ? 'text-brand-deep' : 'text-ink group-hover:text-brand-deep')}>
-                                {item.workerName}
-                                {item.verified && <BadgeCheck className="h-4 w-4 text-action" aria-label="Verified" />}
-                              </p>
-                              <p className="text-xs text-muted">{item.role} · {item.experience}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5 text-ink">{item.jobTitle}<span className="block text-xs text-muted">{item.department}</span></td>
-                        <td className="px-4 py-3.5"><Badge status={item.status} /></td>
-                        <td className="px-4 py-3.5 text-muted">{when(item.appliedAt)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-
-              <ul className="divide-y divide-line md:hidden">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <button type="button" onClick={() => update('id', item.id)} className={cn('flex w-full items-start gap-3 px-4 py-4 text-left', rowClass)}>
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-navy/10 text-xs font-bold text-navy">{initials(item.workerName)}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1 font-semibold text-ink">{item.workerName}{item.verified && <BadgeCheck className="h-4 w-4 text-action" />}</span>
-                        <span className="block truncate text-xs text-muted">{item.role} · {item.jobTitle}</span>
-                        <span className="mt-2 flex items-center gap-2"><Badge status={item.status} /><span className="text-xs text-muted">{dayLabel(item.shiftDate)}</span></span>
-                      </span>
-                      <span className="shrink-0 text-sm font-semibold text-ink">{money(item.amount)}</span>
-                    </button>
-                  </li>
-                ))}
+                        <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xs font-bold', active ? 'bg-brand/15 text-brand-deep' : 'bg-navy/10 text-navy')}>
+                          {initials(item.workerName)}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className={cn('flex items-center gap-1 font-semibold', active ? 'text-brand-deep' : 'text-ink')}>
+                            {item.workerName}
+                            {item.verified && <BadgeCheck className="h-4 w-4 text-action" aria-label="Verified" />}
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs text-muted">{item.role}{item.experience ? ` · ${item.experience}` : ''}</span>
+                          <span className="mt-2 flex flex-wrap items-center gap-2">
+                            <Badge status={item.status} />
+                            <span className="truncate text-xs text-muted">{item.jobTitle}{item.department ? ` · ${item.department}` : ''}</span>
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span className="block text-sm font-semibold text-ink">{money(item.amount)}</span>
+                          <span className="mt-1 block text-xs text-muted">{when(item.appliedAt)}</span>
+                          {item.shiftDate && <span className="mt-0.5 hidden text-xs text-muted sm:block">{dayLabel(item.shiftDate)}</span>}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
 
               <div className="flex items-center justify-between border-t border-line px-4 py-3 text-sm md:px-5">
-                <span className="text-muted">Page {page} of {Math.max(1, Math.ceil((query.data?.total || 0) / PAGE_SIZE))} · {query.data?.total} total</span>
+                <span className="text-muted">Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))} · {total} total</span>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>Previous</Button>
-                  <Button variant="outline" size="sm" disabled={page * PAGE_SIZE >= (query.data?.total || 0)} onClick={() => setPage((value) => value + 1)}>Next</Button>
+                  <Button variant="outline" size="sm" disabled={page * PAGE_SIZE >= total} onClick={() => setPage((value) => value + 1)}>Next</Button>
                 </div>
               </div>
             </>
@@ -184,7 +191,7 @@ export default function ApplicationsPage() {
         {wide && activeId && <ApplicationTimelineCard id={activeId} />}
         </div>
 
-        {wide && activeId && <aside className="sticky top-24 self-start"><Card className="p-5"><ApplicationDetail id={activeId} hideTimeline /></Card></aside>}
+        {wide && activeId && <aside className="sticky top-36 self-start lg:top-[9.25rem]"><Card className="p-5"><ApplicationDetail id={activeId} hideTimeline /></Card></aside>}
       </div>
 
       {!wide && (
@@ -282,7 +289,6 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
         {certRows.map((entry) => {
           const review = reviews.find((item) => item.label.toLowerCase() === entry.label.toLowerCase())
           const uploaded = findUploaded(item, entry.label)
-          const openView = viewing === entry.label
           return (
             <li key={entry.label} className="rounded-xl border border-line px-3 py-2.5">
               <div className="flex items-start gap-2 text-sm">
@@ -292,67 +298,38 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
                 <span className="min-w-0 flex-1 font-medium text-ink">{entry.label}</span>
                 {entry.ok
                   ? (
-                    <button
-                      type="button"
-                      className="shrink-0 text-xs font-semibold text-action hover:text-navy"
-                      onClick={() => { setViewing(openView ? null : entry.label); setRejecting(false); setRejectOther('') }}
-                    >
-                      {openView ? 'Close' : 'View'}
-                    </button>
+                    <span className="flex shrink-0 items-center gap-0.5">
+                      <button
+                        type="button"
+                        aria-label={`View ${entry.label}`}
+                        title="View"
+                        className="grid h-8 w-8 place-items-center rounded-lg text-action transition-colors hover:bg-action-soft hover:text-navy"
+                        onClick={() => { setViewing(entry.label); setRejecting(false); setRejectOther('') }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Download ${entry.label}`}
+                        title="Download"
+                        disabled={!uploaded?.url}
+                        className="grid h-8 w-8 place-items-center rounded-lg text-action transition-colors hover:bg-action-soft hover:text-navy disabled:cursor-not-allowed disabled:opacity-40"
+                        onClick={() => downloadCertificate(uploaded, entry.label)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
+                    </span>
                   )
                   : <span className="shrink-0 text-[11px] text-muted">Missing</span>}
               </div>
-              {review?.status === 'verified' && !openView && <p className="mt-1 pl-6 text-xs text-success">Verified</p>}
-              {review?.status === 'rejected' && !openView && (
+              {review?.status === 'verified' && <p className="mt-1 pl-6 text-xs text-success">Verified</p>}
+              {review?.status === 'rejected' && (
                 <div className="mt-1 pl-6">
                   <p className="text-xs font-medium text-danger">Not verified</p>
                   {review.reason && <p className="text-xs leading-5 text-muted">{review.reason}</p>}
                 </div>
               )}
-              {!review && entry.ok && !openView && <p className="mt-1 pl-6 text-[11px] text-muted">On file · not reviewed</p>}
-              {openView && (
-                <div className="mt-3">
-                  <DocumentPreview name={entry.label} workerName={item.workerName} role={item.role} expiry={item.credentialExpiry} fileName={uploaded?.fileName} url={uploaded?.url} />
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button variant="danger" size="sm" disabled={reviewDoc.isPending} onClick={() => setRejecting(true)}>Not verified</Button>
-                    <Button size="sm" disabled={reviewDoc.isPending} onClick={() => reviewDoc.mutate({ label: entry.label, status: 'verified' })}>
-                      {reviewDoc.isPending && !rejecting ? 'Saving…' : 'Verified'}
-                    </Button>
-                  </div>
-                  {rejecting && (
-                    <div className="mt-3 rounded-xl bg-danger-soft/50 p-3">
-                      <Field label="Reason">
-                        <Select value={rejectCode} onChange={(event) => setRejectCode(event.target.value)}>
-                          {rejectReasons.map((reason) => <option key={reason.code} value={reason.code}>{reason.label}</option>)}
-                        </Select>
-                      </Field>
-                      {rejectCode === 'other' && (
-                        <div className="mt-3">
-                          <Field label="Tell them why">
-                            <TextArea rows={2} value={rejectOther} onChange={(event) => setRejectOther(event.target.value)} placeholder="Write a short reason" />
-                          </Field>
-                        </div>
-                      )}
-                      <div className="mt-3 flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setRejecting(false)}>Go back</Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          disabled={reviewDoc.isPending || (rejectCode === 'other' && rejectOther.trim().length < 4)}
-                          onClick={() => reviewDoc.mutate({
-                            label: entry.label,
-                            status: 'rejected',
-                            reasonCode: rejectCode,
-                            reason: rejectCode === 'other' ? rejectOther.trim() : undefined,
-                          })}
-                        >
-                          {reviewDoc.isPending ? 'Saving…' : 'Send to worker'}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              {!review && entry.ok && <p className="mt-1 pl-6 text-[11px] text-muted">On file · not reviewed</p>}
             </li>
           )
         })}
@@ -457,7 +434,132 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
           </ul>
         </>
       )}
+
+      <DocumentReviewModal
+        open={Boolean(viewing)}
+        label={viewing || ''}
+        workerName={item.workerName}
+        role={item.role}
+        expiry={item.credentialExpiry}
+        file={viewing ? findUploaded(item, viewing) : undefined}
+        review={viewing ? reviews.find((entry) => entry.label.toLowerCase() === viewing.toLowerCase()) : undefined}
+        rejectReasons={rejectReasons}
+        rejecting={rejecting}
+        rejectCode={rejectCode}
+        rejectOther={rejectOther}
+        pending={reviewDoc.isPending}
+        error={reviewDoc.isError ? errorMessage(reviewDoc.error) : ''}
+        onRejectCode={setRejectCode}
+        onRejectOther={setRejectOther}
+        onRejecting={setRejecting}
+        onClose={() => { setViewing(null); setRejecting(false); setRejectOther('') }}
+        onVerify={() => viewing && reviewDoc.mutate({ label: viewing, status: 'verified' })}
+        onReject={() => viewing && reviewDoc.mutate({
+          label: viewing,
+          status: 'rejected',
+          reasonCode: rejectCode,
+          reason: rejectCode === 'other' ? rejectOther.trim() : undefined,
+        })}
+      />
     </div>
+  )
+}
+
+function DocumentReviewModal({
+  open,
+  label,
+  workerName,
+  role,
+  expiry,
+  file,
+  review,
+  rejectReasons,
+  rejecting,
+  rejectCode,
+  rejectOther,
+  pending,
+  error,
+  onRejectCode,
+  onRejectOther,
+  onRejecting,
+  onClose,
+  onVerify,
+  onReject,
+}: {
+  open: boolean
+  label: string
+  workerName: string
+  role: string
+  expiry?: string
+  file?: WorkerDocument
+  review?: DocumentReview
+  rejectReasons: { code: string; label: string }[]
+  rejecting: boolean
+  rejectCode: string
+  rejectOther: string
+  pending: boolean
+  error: string
+  onRejectCode: (value: string) => void
+  onRejectOther: (value: string) => void
+  onRejecting: (value: boolean) => void
+  onClose: () => void
+  onVerify: () => void
+  onReject: () => void
+}) {
+  const canReject = rejectCode !== 'other' || rejectOther.trim().length >= 4
+  return (
+    <Modal
+      open={open}
+      size="xl"
+      title={label || 'Document'}
+      description={`${workerName} · ${role}`}
+      onClose={onClose}
+      footer={
+        rejecting ? (
+          <div className="space-y-3">
+            <Field label="Reason for rejection">
+              <Select value={rejectCode} onChange={(event) => onRejectCode(event.target.value)}>
+                {rejectReasons.map((reason) => <option key={reason.code} value={reason.code}>{reason.label}</option>)}
+              </Select>
+            </Field>
+            {rejectCode === 'other' && (
+              <Field label="Tell them why">
+                <TextArea rows={2} value={rejectOther} onChange={(event) => onRejectOther(event.target.value)} placeholder="Write a short reason" />
+              </Field>
+            )}
+            {error && <p className="text-sm font-medium text-danger">{error}</p>}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" disabled={pending} onClick={() => onRejecting(false)}>Go back</Button>
+              <Button variant="danger" disabled={pending || !canReject} onClick={onReject}>
+                {pending ? 'Sending…' : 'Reject document'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {review?.status === 'verified' && <p className="text-sm font-medium text-success">This document is verified.</p>}
+            {review?.status === 'rejected' && (
+              <p className="text-sm font-medium text-danger">Not verified{review.reason ? ` · ${review.reason}` : ''}</p>
+            )}
+            {error && <p className="text-sm font-medium text-danger">{error}</p>}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <Button variant="danger" disabled={pending} onClick={() => onRejecting(true)}>Reject document</Button>
+              <Button disabled={pending} onClick={onVerify}>{pending ? 'Saving…' : 'Verify document'}</Button>
+            </div>
+          </div>
+        )
+      }
+    >
+      <DocumentPreview
+        large
+        name={label}
+        workerName={workerName}
+        role={role}
+        expiry={expiry}
+        fileName={file?.fileName}
+        url={file?.url}
+      />
+    </Modal>
   )
 }
 
@@ -616,6 +718,16 @@ function suggestedCode(missing: { label: string }[], templates: { code: string; 
   return hit?.code || templates[0]?.code || 'license'
 }
 
+function downloadCertificate(file: WorkerDocument | undefined, label: string) {
+  if (!file?.url) return
+  const link = document.createElement('a')
+  link.href = file.url
+  link.download = file.fileName || `${label.replace(/\s+/g, '-').toLowerCase()}.pdf`
+  link.rel = 'noreferrer'
+  link.target = '_blank'
+  link.click()
+}
+
 function findUploaded(item: Application, label: string): WorkerDocument | undefined {
   const required = (item.requiredDocuments || []).find((doc) => doc.name.toLowerCase() === label.toLowerCase())
   const fromUpload = (item.uploads || []).find((doc) => {
@@ -634,6 +746,7 @@ function DocumentPreview({
   expiry,
   fileName,
   url,
+  large = false,
 }: {
   name: string
   workerName: string
@@ -641,15 +754,31 @@ function DocumentPreview({
   expiry?: string
   fileName?: string
   url?: string
+  large?: boolean
 }) {
-  const image = url && /\.(png|jpe?g|webp|gif)$/i.test(url)
+  const image = Boolean(url && /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url))
+  const pdf = Boolean(url && /\.pdf(\?|$)/i.test(url))
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-canvas">
-      {url && image && <img src={url} alt={name} className="max-h-56 w-full object-contain bg-white" />}
-      {url && !image && (
-        <a href={url} target="_blank" rel="noreferrer" className="block px-3 py-2.5 text-sm font-semibold text-action hover:text-navy">
+      {url && image && (
+        <img src={url} alt={name} className={cn('w-full bg-white object-contain', large ? 'max-h-[58vh]' : 'max-h-56')} />
+      )}
+      {url && pdf && large && (
+        <iframe title={name} src={url} className="h-[58vh] w-full border-0 bg-white" />
+      )}
+      {url && !image && !pdf && (
+        <a href={url} target="_blank" rel="noreferrer" className="block px-3 py-3 text-sm font-semibold text-action hover:text-navy">
           Open original file
         </a>
+      )}
+      {!url && (
+        <div className={cn('grid place-items-center bg-white text-muted', large ? 'h-[42vh]' : 'h-32')}>
+          <div className="text-center">
+            <FileText className="mx-auto h-10 w-10 text-faint" />
+            <p className="mt-2 text-sm font-medium text-ink">{fileName || 'Document on file'}</p>
+            <p className="mt-0.5 text-xs text-muted">No preview is available for this file.</p>
+          </div>
+        </div>
       )}
       <div className="flex items-start gap-3 px-3 py-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-navy ring-1 ring-line">

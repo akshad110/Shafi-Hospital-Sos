@@ -144,6 +144,7 @@ export function createSeed() {
       state: 'Maharashtra',
       country: 'India',
       address: '14 Koregaon Park Road, Pune 411001',
+      socialLink: 'https://www.linkedin.com/company/city-general-hospital',
       departments: ['Critical Care', 'Emergency', 'Laboratory', 'General Medicine'],
       customRoles: [],
       locations: ['Koregaon Park'],

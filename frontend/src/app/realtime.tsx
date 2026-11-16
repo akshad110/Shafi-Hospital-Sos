@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bell, X } from 'lucide-react'
-import { openSocket } from '../services/socket/socket'
+import { closeSocket, openSocket } from '../services/socket/socket'
 import { refreshSession } from '../services/api/client'
 import { cn } from '../lib/utils'
 import type { Notice, NoticeList } from '../types/domain'
@@ -94,7 +94,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     return () => {
       window.clearTimeout(timer.current)
       window.clearTimeout(retry)
-      socket.disconnect()
+      socket.off('connect')
+      socket.off('disconnect')
+      socket.off('connect_error')
+      socket.off('data:changed')
+      socket.off('notification:new')
+      socket.off('notification:sync')
+      socket.io.off('reconnect_attempt')
+      closeSocket()
     }
   }, [queryClient, dismiss])
 

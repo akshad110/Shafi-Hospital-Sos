@@ -8,7 +8,7 @@ import { currentSubscription } from './billing.js'
 import { catalogRoles } from '../catalog.js'
 import { changed } from '../realtime.js'
 import { HOSPITAL_KYC_DOCS, KYC_MAX_FILE_BYTES, isAllowedKycFile, kycDocByCode } from '../lib/hospitalKyc.js'
-import { httpError, includesLabel, nowIso, paging, uid } from '../lib/util.js'
+import { httpError, includesLabel, isSocialLink, normalizeSocialLink, nowIso, paging, uid } from '../lib/util.js'
 import { approvalMail, rejectionMail, resetMail, sendMail } from './mail.js'
 import { notify } from './notifications.js'
 import type { Hospital, HospitalDocument, HospitalVerification, User } from '../types.js'
@@ -71,8 +71,8 @@ function assertKycFiles(files: RegisterFile[]) {
   }
 }
 
-async function lockedPasswordHash() {
-  return bcrypt.hash(randomBytes(32).toString('hex'), 10)
+function lockedPasswordHash() {
+  return '!locked'
 }
 
 async function replaceDocuments(hospitalId: string, files: RegisterFile[]) {
@@ -101,6 +101,7 @@ function hospitalRecord(input: {
   state: string
   country: string
   address: string
+  socialLink?: string
 }): Hospital {
   const place = placeOf(input)
   return {
@@ -110,6 +111,7 @@ function hospitalRecord(input: {
     phone: input.phone.trim(),
     ...place,
     address: input.address.trim(),
+    socialLink: (input.socialLink || '').trim(),
     departments: ['General Medicine'],
     customRoles: [],
     locations: [place.city].filter(Boolean),
@@ -136,6 +138,7 @@ export async function registerHospital(input: {
   state: string
   country: string
   address: string
+  socialLink?: string
 }, files: RegisterFile[]) {
   assertKycFiles(files)
   const email = input.email.toLowerCase().trim()
@@ -147,8 +150,10 @@ export async function registerHospital(input: {
     if (status === 'pending') throw httpError(409, 'A registration with this email is already under review', 'hospital_pending')
     if (status === 'approved') throw httpError(409, 'An account with this email already exists')
     const next = hospitalRecord({ ...input, id: hospital.id, email })
-    await Hospitals.updateOne({ id: hospital.id }, { $set: next })
-    await Users.updateOne({ id: existing.id }, { $set: { passwordHash: await lockedPasswordHash(), email } })
+    await Promise.all([
+      Hospitals.updateOne({ id: hospital.id }, { $set: next }),
+      Users.updateOne({ id: existing.id }, { $set: { passwordHash: lockedPasswordHash(), email } }),
+    ])
     await replaceDocuments(hospital.id, files)
     return { hospital: { ...hospital, ...next } }
   }
@@ -158,12 +163,11 @@ export async function registerHospital(input: {
   const user: User = {
     id: uid(),
     email,
-    passwordHash: await lockedPasswordHash(),
+    passwordHash: lockedPasswordHash(),
     role: 'hospital',
     hospitalId: id,
   }
-  await Hospitals.create(hospital)
-  await Users.create(user)
+  await Promise.all([Hospitals.create(hospital), Users.create(user)])
   await replaceDocuments(id, files)
   return { hospital }
 }
@@ -358,7 +362,7 @@ export async function rejectHospital(id: string, reason: string) {
   if (!updated) throw httpError(404, 'Hospital not found')
   const user = await Users.findOne({ hospitalId: id }, HIDE).lean<User>()
   if (user) {
-    await Users.updateOne({ id: user.id }, { $set: { passwordHash: await lockedPasswordHash() } })
+    await Users.updateOne({ id: user.id }, { $set: { passwordHash: lockedPasswordHash() } })
     await Sessions.deleteMany({ userId: user.id })
   }
   const mail = rejectionMail({
@@ -370,7 +374,7 @@ export async function rejectHospital(id: string, reason: string) {
   return { hospital: { ...updated, verificationStatus: 'rejected' as const }, emailed: false, mailId }
 }
 
-const EDITABLE: (keyof Hospital)[] = ['name', 'phone', 'city', 'state', 'country', 'address', 'departments', 'locations', 'representative', 'representativeRole', 'notifications']
+const EDITABLE: (keyof Hospital)[] = ['name', 'phone', 'city', 'state', 'country', 'address', 'socialLink', 'departments', 'locations', 'representative', 'representativeRole', 'notifications']
 
 export async function updateHospital(id: string, patch: Partial<Hospital>) {
   const update: Record<string, unknown> = {}
@@ -381,6 +385,11 @@ export async function updateHospital(id: string, patch: Partial<Hospital>) {
       continue
     }
     update[key] = typeof patch[key] === 'string' ? (patch[key] as string).trim() : patch[key]
+  }
+  if (typeof update.socialLink === 'string') {
+    const link = normalizeSocialLink(update.socialLink)
+    if (!isSocialLink(link)) throw httpError(400, 'Enter a website, LinkedIn, or other public link')
+    update.socialLink = link
   }
   if (Array.isArray(update.locations)) {
     const subscription = await currentSubscription(id)

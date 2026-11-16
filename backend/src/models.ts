@@ -63,6 +63,7 @@ export const Hospitals = define<Hospital>('hospitals', {
   state: { type: String, default: '', index: true },
   country: { type: String, default: '', index: true },
   address: String,
+  socialLink: { type: String, default: '' },
   departments: [String],
   customRoles: { type: [String], default: [] },
   locations: [String],

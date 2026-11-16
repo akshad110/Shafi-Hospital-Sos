@@ -6,7 +6,7 @@ import { errorCode, errorMessage } from '../../lib/utils'
 import { Button } from '../../components/ui/Button'
 import { Field, TextInput } from '../../components/ui/Field'
 import { Logo } from '../../components/ui/Logo'
-import { BrandPanel } from './BrandPanel'
+import { AuthLayout } from './BrandPanel'
 
 const DEMO = import.meta.env.DEV
 const DEMO_EMAIL = 'admin@cityhospital.com'
@@ -47,9 +47,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      <BrandPanel />
-      <main className="flex min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:px-5 sm:py-10">
+    <AuthLayout>
         <div className="w-full max-w-[420px]">
           <div className="mb-6 lg:hidden">
             <Logo className="h-11 w-auto max-w-[240px]" />
@@ -81,7 +79,6 @@ export function LoginPage() {
             New hospital? <Link to="/signup" className="font-semibold text-brand-deep underline-offset-4 hover:text-brand hover:underline">Register your organisation</Link>
           </p>
         </div>
-      </main>
-    </div>
+    </AuthLayout>
   )
 }

@@ -5,7 +5,7 @@ import { errorMessage } from '../../lib/utils'
 import { Button } from '../../components/ui/Button'
 import { Field, TextInput } from '../../components/ui/Field'
 import { Logo } from '../../components/ui/Logo'
-import { BrandPanel } from './BrandPanel'
+import { AuthLayout } from './BrandPanel'
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -29,9 +29,7 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      <BrandPanel />
-      <main className="flex min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:px-5 sm:py-10">
+    <AuthLayout>
         <div className="w-full max-w-[420px]">
           <div className="mb-6 lg:hidden"><Logo className="h-11 w-auto max-w-[240px]" /></div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">Reset password</h1>
@@ -48,8 +46,7 @@ export function ForgotPasswordPage() {
             <Link to="/login" className="font-semibold text-brand-deep underline-offset-4 hover:text-brand hover:underline">Back to sign in</Link>
           </p>
         </div>
-      </main>
-    </div>
+    </AuthLayout>
   )
 }
 
@@ -76,9 +73,7 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      <BrandPanel />
-      <main className="flex min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:px-5 sm:py-10">
+    <AuthLayout>
         <div className="w-full max-w-[420px]">
           <div className="mb-6 lg:hidden"><Logo className="h-11 w-auto max-w-[240px]" /></div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">Choose a new password</h1>
@@ -98,7 +93,6 @@ export function ResetPasswordPage() {
             </form>
           )}
         </div>
-      </main>
-    </div>
+    </AuthLayout>
   )
 }

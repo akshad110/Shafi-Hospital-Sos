@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { config } from '../config.js'
 import { asyncHandler, cookieBase, requireAuth, signAccess, signRefresh } from '../http.js'
 import { KYC_MAX_FILE_BYTES, kycRequirements } from '../lib/hospitalKyc.js'
+import { isSocialLink, normalizeSocialLink } from '../lib/util.js'
 import {
   changePassword,
   requestHospitalPasswordReset,
@@ -42,6 +43,7 @@ const registerSchema = z.object({
   state: z.string().trim().min(2, 'State is required'),
   country: z.string().trim().min(2, 'Country is required'),
   address: z.string().trim().min(5, 'Address is required'),
+  socialLink: z.string().trim().optional().default('').refine(isSocialLink, 'Enter a website, LinkedIn, or other public link'),
 })
 
 async function startSession(res: Response, userId: string, hospitalId: string, role: string) {
@@ -93,6 +95,7 @@ authRouter.post('/auth/login', asyncHandler(async (req, res) => {
 
 authRouter.post('/auth/register', upload.any(), asyncHandler(async (req, res) => {
   const body = registerSchema.parse(req.body)
+  body.socialLink = normalizeSocialLink(body.socialLink || '')
   const files = ((req.files as Express.Multer.File[]) || []).map((file) => ({
     kind: file.fieldname,
     fileName: file.originalname,

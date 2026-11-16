@@ -190,6 +190,7 @@ function ReviewModal({ apiKey, id, onClose }: { apiKey: string; id: string; onCl
           <dl className="grid gap-2 text-sm sm:grid-cols-2">
             <Fact label="Administrator" value={hospital.representative || '—'} />
             <Fact label="Phone" value={hospital.phone || '—'} />
+            <Fact label="Website / social" value={hospital.socialLink || '—'} />
             <Fact label="Address" value={[hospital.address, placeLabel(hospital)].filter(Boolean).join(' · ') || '—'} />
             <Fact label="Submitted" value={hospital.submittedAt ? new Date(hospital.submittedAt).toLocaleString() : '—'} />
           </dl>

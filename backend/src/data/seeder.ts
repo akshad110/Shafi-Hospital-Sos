@@ -82,6 +82,7 @@ export async function ensureHospitalHiring() {
   )
   await Hospitals.updateMany({ state: { $exists: false } }, { $set: { state: '' } })
   await Hospitals.updateMany({ country: { $exists: false } }, { $set: { country: '' } })
+  await Hospitals.updateMany({ socialLink: { $exists: false } }, { $set: { socialLink: '' } })
   const places = await Hospitals.find({}, { id: 1, city: 1, state: 1, country: 1, _id: 0 }).lean<{ id: string; city?: string; state?: string; country?: string }[]>()
   for (const hospital of places) {
     await Jobs.updateMany(

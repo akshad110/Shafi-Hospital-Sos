@@ -2,10 +2,27 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
+import { cn } from '../../lib/utils'
 
 let openModals = 0
 
-export function Modal({ open, title, description, onClose, children }: { open: boolean; title: string; description?: string; onClose: () => void; children: React.ReactNode }) {
+export function Modal({
+  open,
+  title,
+  description,
+  onClose,
+  children,
+  footer,
+  size = 'md',
+}: {
+  open: boolean
+  title: string
+  description?: string
+  onClose: () => void
+  children: React.ReactNode
+  footer?: React.ReactNode
+  size?: 'md' | 'xl'
+}) {
   useEffect(() => {
     if (!open) return
     const depth = ++openModals
@@ -34,7 +51,10 @@ export function Modal({ open, title, description, onClose, children }: { open: b
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
             transition={{ duration: 0.18 }}
-            className="relative flex max-h-[92vh] w-full max-w-full flex-col overflow-hidden rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-w-lg sm:rounded-2xl sm:pb-0"
+            className={cn(
+              'relative flex max-h-[92vh] w-full max-w-full flex-col overflow-hidden rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:rounded-2xl sm:pb-0',
+              size === 'xl' ? 'sm:max-w-4xl lg:max-w-5xl' : 'sm:max-w-lg',
+            )}
           >
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line bg-white px-4 py-3.5 sm:gap-4 sm:px-5 sm:py-4">
               <div className="min-w-0">
@@ -46,6 +66,7 @@ export function Modal({ open, title, description, onClose, children }: { open: b
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">{children}</div>
+            {footer && <div className="shrink-0 border-t border-line bg-white px-4 py-3 sm:px-5 sm:py-4">{footer}</div>}
           </motion.div>
         </div>
       )}

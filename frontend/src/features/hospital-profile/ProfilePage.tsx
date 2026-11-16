@@ -30,6 +30,7 @@ export default function ProfilePage() {
     state: hospital.state || '',
     country: hospital.country || '',
     address: hospital.address,
+    socialLink: hospital.socialLink || '',
     representative: hospital.representative,
     representativeRole: hospital.representativeRole,
     departments: hospital.departments.join(', '),
@@ -47,6 +48,7 @@ export default function ProfilePage() {
       state: form.state,
       country: form.country,
       address: form.address,
+      socialLink: form.socialLink,
       representative: form.representative,
       representativeRole: form.representativeRole,
       departments: form.departments.split(',').map((item) => item.trim()).filter(Boolean),
@@ -129,6 +131,11 @@ export default function ProfilePage() {
             <Field label="Country"><TextInput required autoComplete="country-name" value={form.country} onChange={(event) => set('country', event.target.value)} /></Field>
             <Field label="Departments" hint="Separate with commas"><TextInput value={form.departments} onChange={(event) => set('departments', event.target.value)} /></Field>
             <div className="sm:col-span-2"><Field label="Address"><TextInput required autoComplete="street-address" value={form.address} onChange={(event) => set('address', event.target.value)} /></Field></div>
+            <div className="sm:col-span-2">
+              <Field label="Website or social link" hint="Hospital website, LinkedIn, or another public page.">
+                <TextInput inputMode="url" autoComplete="url" value={form.socialLink} onChange={(event) => set('socialLink', event.target.value)} placeholder="https://www.linkedin.com/company/your-hospital" />
+              </Field>
+            </div>
           </div>
 
           <div id="alerts" className="scroll-mt-24 border-t border-line px-4 py-4 sm:px-5 sm:py-5 md:px-6">

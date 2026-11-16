@@ -56,3 +56,19 @@ export function includesLabel(list: string[], value: string) {
   const key = value.trim().toLowerCase()
   return list.some((item) => item.trim().toLowerCase() === key)
 }
+
+export function normalizeSocialLink(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+}
+
+export function isSocialLink(value: string) {
+  if (!value) return true
+  try {
+    const url = new URL(normalizeSocialLink(value))
+    return (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname.includes('.')
+  } catch {
+    return false
+  }
+}

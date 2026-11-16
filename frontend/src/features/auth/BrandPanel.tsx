@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react'
 import { CalendarClock, ShieldCheck, Siren } from 'lucide-react'
 import { Logo } from '../../components/ui/Logo'
+import { cn } from '../../lib/utils'
 
 const POINTS = [
   { icon: Siren, title: 'Need someone today?', body: 'Send a request. You confirm who is hired.' },
@@ -7,9 +9,34 @@ const POINTS = [
   { icon: CalendarClock, title: 'Mark and pay', body: 'Tap who came in, then pay them.' },
 ]
 
+export function AuthLayout({
+  children,
+  className,
+  mainClassName,
+}: {
+  children: ReactNode
+  className?: string
+  mainClassName?: string
+}) {
+  return (
+    <div className={cn('min-h-screen bg-navy lg:grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)]', className)}>
+      <BrandPanel />
+      <main
+        className={cn(
+          'relative z-[1] flex min-h-screen min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:py-10',
+          'lg:-ml-24 lg:rounded-l-[50vh] lg:pl-24 lg:pr-10 lg:shadow-[-32px_0_64px_rgba(8,20,50,0.2)]',
+          mainClassName,
+        )}
+      >
+        {children}
+      </main>
+    </div>
+  )
+}
+
 export function BrandPanel() {
   return (
-    <section className="relative hidden flex-col justify-between overflow-hidden bg-navy px-12 py-12 text-white lg:flex">
+    <section className="relative hidden flex-col justify-between overflow-hidden px-12 py-12 pr-20 text-white lg:flex">
       <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border border-white/10" />
       <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full border border-white/10" />
       <div className="relative">

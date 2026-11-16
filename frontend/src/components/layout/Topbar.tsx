@@ -19,6 +19,7 @@ export function Topbar({ hospital, unread, onMenu }: { hospital: Hospital; unrea
   const live = useLiveStatus()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const closeTimer = useRef<number>(0)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const signOut = useMutation({
@@ -34,8 +35,21 @@ export function Topbar({ hospital, unread, onMenu }: { hospital: Hospital; unrea
       if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      window.clearTimeout(closeTimer.current)
+    }
   }, [])
+
+  function showMenu() {
+    window.clearTimeout(closeTimer.current)
+    setOpen(true)
+  }
+
+  function hideMenu() {
+    window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(() => setOpen(false), 140)
+  }
 
   function go(to: string) {
     setOpen(false)
@@ -66,11 +80,21 @@ export function Topbar({ hospital, unread, onMenu }: { hospital: Hospital; unrea
           <Bell className="h-[18px] w-[18px]" />
           {unread > 0 && <span key={unread} className="absolute -right-1 -top-1 grid h-5 min-w-5 animate-[pop_0.3s_ease-out] place-items-center rounded-full bg-sos px-1 text-[10px] font-bold text-white ring-2 ring-white">{unread > 99 ? '99+' : unread}</span>}
         </button>
-        <div className="relative" ref={ref}>
+        <div
+          className="relative"
+          ref={ref}
+          onMouseEnter={showMenu}
+          onMouseLeave={hideMenu}
+        >
           <button
             type="button"
-            onClick={() => setOpen((value) => !value)}
+            onClick={() => {
+              if (window.matchMedia('(hover: hover)').matches) return
+              setOpen((value) => !value)
+            }}
+            onFocus={showMenu}
             aria-expanded={open}
+            aria-haspopup="menu"
             className={cn('flex items-center gap-2 rounded-full border py-1 pl-1 pr-1 transition-colors md:pr-3', open ? 'border-brand bg-mint' : 'border-line-strong hover:border-brand hover:bg-canvas')}
           >
             <span className="grid h-8 w-8 place-items-center rounded-full bg-navy text-[11px] font-bold text-white">{initials(hospital.name)}</span>
@@ -83,12 +107,14 @@ export function Topbar({ hospital, unread, onMenu }: { hospital: Hospital; unrea
           <AnimatePresence>
             {open && (
               <motion.div
+                role="menu"
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.15 }}
-                className="absolute right-0 mt-2 w-60 overflow-hidden rounded-2xl border border-line bg-white shadow-xl"
+                className="absolute right-0 top-full z-30 w-60 pt-2"
               >
+                <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-xl">
                 <div className="border-b border-line px-4 py-3">
                   <p className="truncate text-sm font-semibold text-ink">{hospital.name}</p>
                   <p className="truncate text-xs text-muted">{hospital.email}</p>
@@ -102,6 +128,7 @@ export function Topbar({ hospital, unread, onMenu }: { hospital: Hospital; unrea
                   <button type="button" onClick={() => signOut.mutate()} className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-danger transition-colors hover:bg-danger-soft">
                     <LogOut className="h-4 w-4" /> Log out
                   </button>
+                </div>
                 </div>
               </motion.div>
             )}

@@ -32,8 +32,15 @@ export async function login(email: string, password: string) {
   return data.user
 }
 
-export async function register(body: FormData) {
-  const { data } = await client.post<{ ok: boolean; status: string; message: string }>('/auth/register', body, { timeout: 120000 })
+export async function register(body: FormData, onProgress?: (percent: number) => void) {
+  const { data } = await client.post<{ ok: boolean; status: string; message: string }>('/auth/register', body, {
+    timeout: 120000,
+    onUploadProgress(event) {
+      if (!event.total) return
+      onProgress?.(Math.min(99, Math.round((event.loaded / event.total) * 100)))
+    },
+  })
+  onProgress?.(100)
   return data
 }
 

@@ -45,6 +45,7 @@ export interface Hospital {
   state: string
   country: string
   address: string
+  socialLink?: string
   departments: string[]
   customRoles: string[]
   locations: string[]

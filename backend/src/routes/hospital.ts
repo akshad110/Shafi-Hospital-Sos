@@ -88,6 +88,7 @@ hospitalRouter.patch('/hospitals/me', asyncHandler(async (req, res) => {
     state: z.string().min(2).optional(),
     country: z.string().min(2).optional(),
     address: z.string().min(5).optional(),
+    socialLink: z.string().trim().optional(),
     departments: z.array(z.string().min(2)).optional(),
     locations: z.array(z.string().trim().min(2).max(80)).max(20).optional(),
     representative: z.string().optional(),
