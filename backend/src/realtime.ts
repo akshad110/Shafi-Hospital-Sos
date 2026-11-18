@@ -46,7 +46,7 @@ const ENTITY_BY_COLLECTION: Record<string, Entity[]> = {
   shifts: ['shifts', 'contracts'],
   contracts: ['contracts'],
   payouts: ['payouts', 'contracts'],
-  workers: ['workers'],
+  workers: ['workers', 'applications'],
   workerReviews: ['workers'],
   subscriptions: ['subscription'],
   invoices: ['billing'],

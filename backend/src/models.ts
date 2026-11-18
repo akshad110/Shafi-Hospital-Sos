@@ -27,8 +27,8 @@ function sub(fields: Fields): Schema {
   return new Schema(fields as SchemaDefinition, { _id: false })
 }
 
-function define<T>(name: string, fields: Fields, indexes: Record<string, 1 | -1>[] = []): mongoose.Model<T> {
-  const schema: Schema = new Schema(fields as SchemaDefinition, { versionKey: false, strict: true, minimize: false })
+function define<T>(name: string, fields: Fields, indexes: Record<string, 1 | -1>[] = [], strict = true): mongoose.Model<T> {
+  const schema: Schema = new Schema(fields as SchemaDefinition, { versionKey: false, strict, minimize: false })
   for (const index of indexes) schema.index(index)
   return (mongoose.models[name] ?? mongoose.model(name, schema, name)) as unknown as mongoose.Model<T>
 }
@@ -176,7 +176,7 @@ export const Workers = define<Worker>('workers', {
     createdAt: String,
     updatedAt: String,
   })],
-}, [{ hospitalId: 1, name: 1 }])
+}, [{ hospitalId: 1, name: 1 }], false)
 
 export const WorkerReviews = define<WorkerReview>('workerReviews', {
   id,
@@ -252,7 +252,7 @@ export const Applications = define<Application>('applications', {
     contentType: String,
     at: String,
   })],
-}, [{ hospitalId: 1, appliedAt: -1 }])
+}, [{ hospitalId: 1, appliedAt: -1 }], false)
 
 export const Contracts = define<Contract>('contracts', {
   id,

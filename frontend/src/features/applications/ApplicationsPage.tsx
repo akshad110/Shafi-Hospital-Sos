@@ -71,6 +71,8 @@ export default function ApplicationsPage() {
     queryKey: ['applications', { term, status, page }],
     queryFn: () => applications({ q: term || undefined, status: status || undefined, page, limit: PAGE_SIZE }),
     placeholderData: keepPreviousData,
+    staleTime: 15_000,
+    refetchOnMount: 'always',
   })
 
   function update(key: string, value?: string) {
@@ -231,7 +233,13 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
   const [rejecting, setRejecting] = useState(false)
   const [rejectCode, setRejectCode] = useState(FALLBACK_REJECT[0].code)
   const [rejectOther, setRejectOther] = useState('')
-  const query = useQuery({ queryKey: ['application', id], queryFn: () => application(id) })
+  const query = useQuery({
+    queryKey: ['application', id],
+    queryFn: () => application(id),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchInterval: 12_000,
+  })
 
   function refresh() {
     return Promise.all([
@@ -263,17 +271,8 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
   if (query.isLoading) return <div className="space-y-3"><Skeleton className="h-12" /><Skeleton className="h-32" /></div>
   if (query.isError || !query.data) return <ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} />
   const item = query.data
-  const checks = requirementChecks(item)
-  const listed = new Set(checks.map((entry) => entry.label.toLowerCase()))
-  const seenFiles = new Set<string>()
-  const extraDocs = [...asList(item.documents), ...asList(item.uploads)].filter((doc) => {
-    const name = text(doc.name) || text(doc.fileName)
-    const key = text(doc.id) || text(doc.url) || name
-    if (!name || seenFiles.has(key) || listed.has(name.toLowerCase()) || checks.some((entry) => covered([name], entry.label))) return false
-    seenFiles.add(key)
-    return true
-  })
-  const certRows = [...checks, ...extraDocs.map((doc) => ({ label: doc.name, ok: true }))]
+  const certRows = certificateRows(item)
+  const checks = certRows.filter((entry) => !entry.extra)
   const missing = checks.filter((entry) => !entry.ok)
   const busy = confirm.isPending || decline.isPending
   const open = OPEN.has(item.status)
@@ -308,9 +307,9 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
       <ul className="mt-2 space-y-2">
         {certRows.map((entry) => {
           const review = reviews.find((item) => text(item.label).toLowerCase() === text(entry.label).toLowerCase())
-          const uploaded = findUploaded(item, entry.label)
+          const uploaded = entry.file
           return (
-            <li key={entry.label} className="rounded-xl border border-line px-3 py-2.5">
+            <li key={entry.key} className="rounded-xl border border-line px-3 py-2.5">
               <div className="flex items-start gap-2 text-sm">
                 {review?.status === 'verified' || (entry.ok && review?.status !== 'rejected')
                   ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
@@ -461,7 +460,7 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
         workerName={item.workerName}
         role={item.role}
         expiry={item.credentialExpiry}
-        file={viewing ? findUploaded(item, viewing) : undefined}
+        file={viewing ? certRows.find((entry) => entry.label === viewing)?.file || findUploaded(item, viewing) : undefined}
         review={viewing ? reviews.find((entry) => text(entry.label).toLowerCase() === viewing.toLowerCase()) : undefined}
         rejectReasons={rejectReasons}
         rejecting={rejecting}
@@ -584,7 +583,12 @@ function DocumentReviewModal({
 }
 
 function ApplicationTimelineCard({ id }: { id: string }) {
-  const query = useQuery({ queryKey: ['application', id], queryFn: () => application(id) })
+  const query = useQuery({
+    queryKey: ['application', id],
+    queryFn: () => application(id),
+    staleTime: 0,
+    refetchOnMount: 'always',
+  })
   if (query.isLoading) {
     return <Card className="p-5"><Skeleton className="h-24" /></Card>
   }
@@ -724,6 +728,8 @@ const FILE_ALIASES = [
   ['doctor', 'mbbs', 'medical certificate', 'mci', 'nmc', 'registration certificate', 'doctor certificate'],
 ]
 
+type CertificateRow = { key: string; label: string; ok: boolean; extra?: boolean; file?: WorkerDocument }
+
 function tokens(value: string) {
   return text(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
@@ -754,33 +760,71 @@ function fileLabels(doc: WorkerDocument) {
   return [doc.name, doc.fileName, doc.kind, doc.documentId].map((value) => text(value)).filter(Boolean)
 }
 
-function hasFileFor(item: Application, label: string) {
-  const required = asList(item.requiredDocuments).find((doc) => tokens(doc.name) === tokens(label))
-  const files = [...asList(item.documents), ...asList(item.uploads)]
-  return files.some((doc) => {
-    const names = fileLabels(doc)
-    if (covered(names, label) || covered([label], text(doc.name))) return true
-    if (required && (doc.documentId === required.id || doc.id === required.id)) return true
-    return false
-  })
+function fileIdentity(doc: WorkerDocument) {
+  return text(doc.url) || text(doc.id) || text(doc.fileName) || text(doc.documentId) || text(doc.name)
 }
 
-function requirementChecks(item: Application) {
-  const files = [...asList(item.documents), ...asList(item.uploads)]
-  const have = [
-    ...asList(item.qualifications),
-    ...asList(item.certifications),
-    ...asList(item.skills),
-    ...files.flatMap((doc) => fileLabels(doc)),
-  ].map((label) => text(label)).filter(Boolean)
+function uniqueFiles(item: Application) {
+  const seen = new Set<string>()
+  const out: WorkerDocument[] = []
+  for (const doc of [...asList(item.documents), ...asList(item.uploads)]) {
+    const key = fileIdentity(doc)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(doc)
+  }
+  return out
+}
+
+function matchesRequired(doc: WorkerDocument, label: string, required?: { id: string; name: string }) {
+  if (required && (doc.documentId === required.id || doc.id === required.id)) return true
+  return covered(fileLabels(doc), label) || covered([label], text(doc.name))
+}
+
+function certificateRows(item: Application): CertificateRow[] {
+  const files = uniqueFiles(item)
   const needed = asList(item.requiredDocuments).map((doc) => text(doc.name)).filter(Boolean)
   const fallback = [...asList(item.jobQualifications), ...asList(item.jobCertifications), ...asList(item.jobSkills)].map((label) => text(label)).filter(Boolean)
   const unique = [...new Set(needed.length ? needed : fallback)]
-  if (unique.length === 0) {
-    const fromFiles = files.map((doc) => text(doc.name) || text(doc.fileName) || 'Document').filter(Boolean)
-    return [...new Set([...have, ...fromFiles])].slice(0, 8).map((label) => ({ label, ok: true }))
+  const used = new Set<string>()
+
+  function take(doc: WorkerDocument | undefined) {
+    if (!doc) return undefined
+    used.add(fileIdentity(doc))
+    return doc
   }
-  return unique.map((label) => ({ label, ok: covered(have, label) || hasFileFor(item, label) }))
+
+  const rows: CertificateRow[] = unique.map((label, index) => {
+    const required = asList(item.requiredDocuments).find((doc) => tokens(doc.name) === tokens(label))
+    const file = take(files.find((doc) => !used.has(fileIdentity(doc)) && matchesRequired(doc, label, required)))
+    return { key: `req-${required?.id || label}-${index}`, label, ok: Boolean(file), file }
+  })
+
+  const leftover = files.filter((doc) => !used.has(fileIdentity(doc)))
+  for (const row of rows) {
+    if (row.ok) continue
+    const next = leftover.shift()
+    if (!next) continue
+    used.add(fileIdentity(next))
+    row.ok = true
+    row.file = next
+  }
+
+  leftover.forEach((doc, index) => {
+    const label = text(doc.name) || text(doc.fileName) || `Uploaded document ${index + 1}`
+    rows.push({ key: `extra-${fileIdentity(doc) || index}`, label, ok: true, extra: true, file: doc })
+  })
+
+  if (!unique.length && files.length) {
+    return files.map((doc, index) => ({
+      key: `file-${fileIdentity(doc) || index}`,
+      label: text(doc.name) || text(doc.fileName) || `Uploaded document ${index + 1}`,
+      ok: true,
+      extra: true,
+      file: doc,
+    }))
+  }
+  return rows
 }
 
 function suggestedCode(missing: { label: string }[], templates: { code: string; label: string }[]) {
