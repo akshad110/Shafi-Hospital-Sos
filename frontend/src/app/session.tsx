@@ -2,11 +2,11 @@ import { createContext, useContext, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { session } from '../services/api'
-import { markSignedIn, writeAccessToken } from '../services/api/client'
+import { markSignedIn, readAccessToken, wasSignedIn } from '../services/api/client'
 import { isConnectionError } from '../lib/utils'
 import { Logo } from '../components/ui/Logo'
 import { RealtimeProvider } from './realtime'
-import { clearQueryCache, prefetchHospital, prefetchRoutes } from './cache'
+import { prefetchHospital, prefetchRoutes } from './cache'
 import type { Hospital, SessionUser } from '../types/domain'
 
 interface SessionValue {
@@ -24,11 +24,13 @@ export function useSession() {
 
 export function SessionGate({ children, login }: { children: React.ReactNode; login: React.ReactNode }) {
   const queryClient = useQueryClient()
+  const signedIn = Boolean(readAccessToken() || wasSignedIn())
   const me = useQuery({
     queryKey: ['session'],
     queryFn: session,
     retry: false,
     staleTime: 5 * 60_000,
+    enabled: signedIn,
   })
 
   useEffect(() => {
@@ -38,16 +40,9 @@ export function SessionGate({ children, login }: { children: React.ReactNode; lo
     prefetchRoutes()
   }, [me.data, queryClient])
 
-  useEffect(() => {
-    if (!me.isError || !axios.isAxiosError(me.error) || me.error.response?.status !== 401) return
-    writeAccessToken()
-    clearQueryCache()
-    queryClient.removeQueries({ queryKey: ['session'] })
-  }, [me.isError, me.error, queryClient])
-
   const unauthorized = me.isError && axios.isAxiosError(me.error) && me.error.response?.status === 401
 
-  if (me.isLoading && !me.data) {
+  if (signedIn && !me.data && (me.isLoading || me.isFetching || me.isPending)) {
     return (
       <div className="grid min-h-screen place-items-center bg-canvas">
         <div className="flex flex-col items-center gap-3">

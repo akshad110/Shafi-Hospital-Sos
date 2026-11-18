@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { login } from '../../services/api'
+import { login, session } from '../../services/api'
 import { errorCode, errorMessage } from '../../lib/utils'
 import { Button } from '../../components/ui/Button'
 import { Field, TextInput } from '../../components/ui/Field'
@@ -27,8 +27,13 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
-      await queryClient.invalidateQueries({ queryKey: ['session'] })
-      navigate('/')
+      try {
+        const data = await session()
+        queryClient.setQueryData(['session'], data)
+      } catch {
+        await queryClient.resetQueries({ queryKey: ['session'] })
+      }
+      navigate('/', { replace: true })
     } catch (err) {
       const code = errorCode(err)
       if (code === 'hospital_pending') {
