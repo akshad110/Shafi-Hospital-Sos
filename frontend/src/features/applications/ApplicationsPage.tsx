@@ -265,9 +265,13 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
   const item = query.data
   const checks = requirementChecks(item)
   const listed = new Set(checks.map((entry) => entry.label.toLowerCase()))
-  const extraDocs = asList(item.documents).filter((doc) => {
-    const name = text(doc.name)
-    return name && !listed.has(name.toLowerCase()) && !checks.some((entry) => covered([name], entry.label))
+  const seenFiles = new Set<string>()
+  const extraDocs = [...asList(item.documents), ...asList(item.uploads)].filter((doc) => {
+    const name = text(doc.name) || text(doc.fileName)
+    const key = text(doc.id) || text(doc.url) || name
+    if (!name || seenFiles.has(key) || listed.has(name.toLowerCase()) || checks.some((entry) => covered([name], entry.label))) return false
+    seenFiles.add(key)
+    return true
   })
   const certRows = [...checks, ...extraDocs.map((doc) => ({ label: doc.name, ok: true }))]
   const missing = checks.filter((entry) => !entry.ok)
@@ -714,31 +718,69 @@ function text(value: unknown, fallback = '') {
   return String(value)
 }
 
+const FILE_ALIASES = [
+  ['aadhaar', 'aadhar', 'adhar', 'uidai', 'uid', 'id proof', 'identity card'],
+  ['pan', 'pan card', 'permanent account'],
+  ['doctor', 'mbbs', 'medical certificate', 'mci', 'nmc', 'registration certificate', 'doctor certificate'],
+]
+
+function tokens(value: string) {
+  return text(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function compact(value: string) {
+  return tokens(value).replace(/\s+/g, '')
+}
+
 function covered(have: string[], need: string) {
-  const needle = text(need).trim().toLowerCase()
+  const needle = tokens(need)
+  const needleCompact = compact(need)
   if (!needle) return false
   return have.some((item) => {
-    const value = text(item).trim().toLowerCase()
+    const value = tokens(item)
+    const valueCompact = compact(item)
     if (!value) return false
-    return value === needle || value.includes(needle) || needle.includes(value)
+    if (value === needle || value.includes(needle) || needle.includes(value)) return true
+    if (valueCompact && (valueCompact.includes(needleCompact) || needleCompact.includes(valueCompact))) return true
+    return FILE_ALIASES.some((group) => {
+      const needHit = group.some((alias) => needle.includes(alias) || needleCompact.includes(alias.replace(/\s+/g, '')))
+      const haveHit = group.some((alias) => value.includes(alias) || valueCompact.includes(alias.replace(/\s+/g, '')))
+      return needHit && haveHit
+    })
+  })
+}
+
+function fileLabels(doc: WorkerDocument) {
+  return [doc.name, doc.fileName, doc.kind, doc.documentId].map((value) => text(value)).filter(Boolean)
+}
+
+function hasFileFor(item: Application, label: string) {
+  const required = asList(item.requiredDocuments).find((doc) => tokens(doc.name) === tokens(label))
+  const files = [...asList(item.documents), ...asList(item.uploads)]
+  return files.some((doc) => {
+    const names = fileLabels(doc)
+    if (covered(names, label) || covered([label], text(doc.name))) return true
+    if (required && (doc.documentId === required.id || doc.id === required.id)) return true
+    return false
   })
 }
 
 function requirementChecks(item: Application) {
+  const files = [...asList(item.documents), ...asList(item.uploads)]
   const have = [
     ...asList(item.qualifications),
     ...asList(item.certifications),
     ...asList(item.skills),
-    ...asList(item.documents).map((doc) => text(doc.name)),
-    ...asList(item.uploads).map((doc) => text(doc.name)),
+    ...files.flatMap((doc) => fileLabels(doc)),
   ].map((label) => text(label)).filter(Boolean)
   const needed = asList(item.requiredDocuments).map((doc) => text(doc.name)).filter(Boolean)
   const fallback = [...asList(item.jobQualifications), ...asList(item.jobCertifications), ...asList(item.jobSkills)].map((label) => text(label)).filter(Boolean)
   const unique = [...new Set(needed.length ? needed : fallback)]
   if (unique.length === 0) {
-    return have.slice(0, 6).map((label) => ({ label, ok: true }))
+    const fromFiles = files.map((doc) => text(doc.name) || text(doc.fileName) || 'Document').filter(Boolean)
+    return [...new Set([...have, ...fromFiles])].slice(0, 8).map((label) => ({ label, ok: true }))
   }
-  return unique.map((label) => ({ label, ok: covered(have, label) }))
+  return unique.map((label) => ({ label, ok: covered(have, label) || hasFileFor(item, label) }))
 }
 
 function suggestedCode(missing: { label: string }[], templates: { code: string; label: string }[]) {
@@ -758,17 +800,13 @@ function downloadCertificate(file: WorkerDocument | undefined, label: string) {
 }
 
 function findUploaded(item: Application, label: string): WorkerDocument | undefined {
-  const required = asList(item.requiredDocuments).find((doc) => text(doc.name).toLowerCase() === text(label).toLowerCase())
-  const fromUpload = asList(item.uploads).find((doc) => {
-    const name = text(doc.name)
-    const matchName = covered([name], label) || covered([label], name)
+  const required = asList(item.requiredDocuments).find((doc) => tokens(doc.name) === tokens(label))
+  const files = [...asList(item.uploads), ...asList(item.documents)]
+  return files.find((doc) => {
+    const names = fileLabels(doc)
+    const matchName = covered(names, label) || covered([label], text(doc.name))
     const matchId = required && (doc.documentId === required.id || doc.id === required.id)
     return matchName || Boolean(matchId)
-  })
-  if (fromUpload) return fromUpload
-  return asList(item.documents).find((doc) => {
-    const name = text(doc.name)
-    return covered([name], label) || covered([label], name)
   })
 }
 

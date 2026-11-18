@@ -1,5 +1,6 @@
 import type { PipelineStage } from 'mongoose'
 import { Applications, Contracts, Jobs, Shifts, Workers } from '../models.js'
+import { collectWorkerFiles, findRawApplication, findWorkerRecord } from '../lib/workerFiles.js'
 import { changed } from '../realtime.js'
 import { DOCUMENT_REJECT_REASONS, DOCUMENT_REQUESTS, documentRejectBody, documentRequestBody } from '../lib/documentRequests.js'
 import { presentDayPay, resolvePayRules } from '../lib/payRules.js'
@@ -21,7 +22,28 @@ const ACTION: Record<ApplicationStatus, string> = {
 function joined(match: Record<string, unknown>): PipelineStage[] {
   return [
     { $match: match },
-    { $lookup: { from: 'workers', localField: 'workerId', foreignField: 'id', as: 'worker' } },
+    {
+      $lookup: {
+        from: 'workers',
+        let: { wid: '$workerId' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: ['$id', '$$wid'] },
+                  { $eq: ['$workerId', '$$wid'] },
+                  { $eq: ['$uid', '$$wid'] },
+                  { $eq: [{ $toString: '$_id' }, '$$wid'] },
+                ],
+              },
+            },
+          },
+          { $limit: 1 },
+        ],
+        as: 'worker',
+      },
+    },
     { $lookup: { from: 'jobs', localField: 'jobId', foreignField: 'id', as: 'job' } },
     { $set: { worker: { $first: '$worker' }, job: { $first: '$job' } } },
     {
@@ -58,9 +80,48 @@ function joined(match: Record<string, unknown>): PipelineStage[] {
         documents: { $ifNull: ['$worker.documents', []] },
         documentReviews: { $ifNull: ['$documentReviews', []] },
         uploads: { $ifNull: ['$uploads', []] },
+        applicationDocuments: { $ifNull: ['$documents', []] },
+        applicationFiles: { $ifNull: ['$files', []] },
+        applicationAttachments: { $ifNull: ['$attachments', []] },
+        workerRecord: '$worker',
       },
     },
   ]
+}
+
+type ApplicationRow = Record<string, unknown> & {
+  id: string
+  hospitalId: string
+  workerId?: string
+  uploads?: unknown
+  documents?: unknown
+  applicationDocuments?: unknown
+  applicationFiles?: unknown
+  applicationAttachments?: unknown
+  workerRecord?: unknown
+}
+
+async function hydrateApplication(row: ApplicationRow | null) {
+  if (!row) return null
+  const raw = await findRawApplication(row.id, row.hospitalId)
+  const worker = row.workerRecord || (row.workerId ? await findWorkerRecord(row.workerId) : null)
+  const files = collectWorkerFiles(
+    row.uploads,
+    row.documents,
+    row.applicationDocuments,
+    row.applicationFiles,
+    row.applicationAttachments,
+    raw,
+    worker,
+  )
+  const {
+    workerRecord: _workerRecord,
+    applicationDocuments: _applicationDocuments,
+    applicationFiles: _applicationFiles,
+    applicationAttachments: _applicationAttachments,
+    ...rest
+  } = row
+  return { ...rest, documents: files, uploads: files }
 }
 
 export async function listApplications(hospitalId: string, query: { q?: string; status?: string; page?: number; limit?: number }) {
@@ -73,13 +134,14 @@ export async function listApplications(hospitalId: string, query: { q?: string; 
   }
   const { page, limit, skip } = paging(query.page, query.limit)
   pipeline.push({ $sort: { appliedAt: -1 } }, { $facet: { items: [{ $skip: skip }, { $limit: limit }], total: [{ $count: 'value' }] } })
-  const [result] = await Applications.aggregate<{ items: unknown[]; total: { value: number }[] }>(pipeline)
-  return { items: result?.items || [], total: result?.total[0]?.value || 0, page, limit }
+  const [result] = await Applications.aggregate<{ items: ApplicationRow[]; total: { value: number }[] }>(pipeline)
+  const items = await Promise.all((result?.items || []).map((item) => hydrateApplication(item)))
+  return { items: items.filter(Boolean), total: result?.total[0]?.value || 0, page, limit }
 }
 
 export async function getApplication(hospitalId: string, id: string) {
-  const [row] = await Applications.aggregate(joined({ hospitalId, id }))
-  return row || null
+  const [row] = await Applications.aggregate<ApplicationRow>(joined({ hospitalId, id }))
+  return hydrateApplication(row || null)
 }
 
 async function setStatus(hospitalId: string, id: string, status: ApplicationStatus, note: string) {
