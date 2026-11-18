@@ -31,8 +31,10 @@ export function greeting(name: string) {
   return `${hello}, ${name}`
 }
 
-export function money(amount: number) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount)
+export function money(amount?: number | null) {
+  const value = Number(amount)
+  if (!Number.isFinite(value)) return '—'
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value)
 }
 
 export function placeLabel(place: { city?: string; state?: string; country?: string }) {

@@ -33,7 +33,7 @@ function joined(match: Record<string, unknown>): PipelineStage[] {
         workerId: 1,
         status: 1,
         appliedAt: 1,
-        timeline: 1,
+        timeline: { $ifNull: ['$timeline', []] },
         messages: { $ifNull: ['$messages', []] },
         workerName: { $ifNull: ['$worker.name', 'Worker'] },
         role: { $ifNull: ['$worker.role', ''] },

@@ -22,6 +22,7 @@ import { Chip } from '../../components/ui/Chip'
 import { DateInput, Field, SearchInput, Select, TextArea, TextInput } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { PageHeader } from '../../components/ui/PageHeader'
+import { RouteError } from '../../components/ui/RouteError'
 import { ErrorState, Skeleton } from '../../components/ui/States'
 
 const filters = ['', 'under_review', 'needs_update', 'shortlisted', 'offered', 'confirmed', 'rejected']
@@ -79,7 +80,7 @@ export default function ApplicationsPage() {
     setParams(next, { replace: true })
   }
 
-  const items = query.data?.items || []
+  const items = Array.isArray(query.data?.items) ? query.data.items : []
   const activeId = selectedId || (wide ? items[0]?.id : '')
   const filtered = Boolean(term || status)
   const total = query.data?.total || 0
@@ -188,10 +189,22 @@ export default function ApplicationsPage() {
             </>
           )}
         </Card>
-        {wide && activeId && <ApplicationTimelineCard id={activeId} />}
+        {wide && activeId && (
+          <RouteError>
+            <ApplicationTimelineCard id={activeId} />
+          </RouteError>
+        )}
         </div>
 
-        {wide && activeId && <aside className="sticky top-36 self-start lg:top-[9.25rem]"><Card className="p-5"><ApplicationDetail id={activeId} hideTimeline /></Card></aside>}
+        {wide && activeId && (
+          <aside className="sticky top-36 self-start lg:top-[9.25rem]">
+            <Card className="p-5">
+              <RouteError>
+                <ApplicationDetail id={activeId} hideTimeline />
+              </RouteError>
+            </Card>
+          </aside>
+        )}
       </div>
 
       {!wide && (
@@ -252,20 +265,23 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
   const item = query.data
   const checks = requirementChecks(item)
   const listed = new Set(checks.map((entry) => entry.label.toLowerCase()))
-  const extraDocs = (item.documents || []).filter((doc) => !listed.has(doc.name.toLowerCase()) && !checks.some((entry) => covered([doc.name], entry.label)))
+  const extraDocs = asList(item.documents).filter((doc) => {
+    const name = text(doc.name)
+    return name && !listed.has(name.toLowerCase()) && !checks.some((entry) => covered([name], entry.label))
+  })
   const certRows = [...checks, ...extraDocs.map((doc) => ({ label: doc.name, ok: true }))]
   const missing = checks.filter((entry) => !entry.ok)
   const busy = confirm.isPending || decline.isPending
   const open = OPEN.has(item.status)
   const actionError = confirm.error || decline.error || requestDocs.error || reviewDoc.error
-  const reviews = item.documentReviews || []
+  const reviews = asList(item.documentReviews)
   const declineNote = declineReason === 'Other' ? declineOther.trim() : declineReason
   const template = templates.find((entry) => entry.code === code)
   const customName = customDoc.trim() || 'document'
   const preview = code === 'other'
     ? `Your ${customName} is missing. Please upload it before ${dueBy}.`
     : (template?.body || 'Please update the missing document before {due}.').replace('{due}', dueBy)
-  const messages = item.messages || []
+  const messages = asList(item.messages)
 
   return (
     <div>
@@ -287,7 +303,7 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
       <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Certificates</h3>
       <ul className="mt-2 space-y-2">
         {certRows.map((entry) => {
-          const review = reviews.find((item) => item.label.toLowerCase() === entry.label.toLowerCase())
+          const review = reviews.find((item) => text(item.label).toLowerCase() === text(entry.label).toLowerCase())
           const uploaded = findUploaded(item, entry.label)
           return (
             <li key={entry.label} className="rounded-xl border border-line px-3 py-2.5">
@@ -442,7 +458,7 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
         role={item.role}
         expiry={item.credentialExpiry}
         file={viewing ? findUploaded(item, viewing) : undefined}
-        review={viewing ? reviews.find((entry) => entry.label.toLowerCase() === viewing.toLowerCase()) : undefined}
+        review={viewing ? reviews.find((entry) => text(entry.label).toLowerCase() === viewing.toLowerCase()) : undefined}
         rejectReasons={rejectReasons}
         rejecting={rejecting}
         rejectCode={rejectCode}
@@ -576,7 +592,7 @@ function ApplicationTimelineCard({ id }: { id: string }) {
   )
 }
 
-function ApplicationTimeline({ events, status }: { events: { status: string; at: string; note: string }[]; status: string }) {
+function ApplicationTimeline({ events, status }: { events?: { status: string; at: string; note: string }[]; status: string }) {
   const scroller = useRef<HTMLOListElement>(null)
   const [canLeft, setCanLeft] = useState(false)
   const [canRight, setCanRight] = useState(false)
@@ -624,7 +640,7 @@ function ApplicationTimeline({ events, status }: { events: { status: string; at:
         <ol ref={scroller} className="no-scrollbar flex min-w-0 flex-1 overflow-x-auto overscroll-x-contain scroll-smooth pb-1">
           {steps.map((step, index) => {
             const last = index === steps.length - 1
-            const tone = TIMELINE_TONE[step.tone]
+            const tone = TIMELINE_TONE[step.tone] || TIMELINE_TONE.pending
             return (
               <li key={`${step.at}-${step.status}-${index}`} className="relative flex min-w-[148px] max-w-[200px] flex-1 shrink-0 flex-col pr-4">
                 <div className="flex items-center">
@@ -664,9 +680,10 @@ function timelineFailed(event: { status: string; note: string }) {
   return event.status === 'rejected' || /not verified/i.test(event.note || '')
 }
 
-function timelineSteps(events: { status: string; at: string; note: string }[], status: string) {
-  const items = events.map((event, index) => {
-    const last = index === events.length - 1
+function timelineSteps(events: { status: string; at: string; note: string }[] | undefined, status: string) {
+  const source = asList(events)
+  const items = source.map((event, index) => {
+    const last = index === source.length - 1
     const failed = timelineFailed(event)
     const tone = failed
       ? 'pending' as const
@@ -687,25 +704,37 @@ function plusDays(days: number) {
   return date.toISOString().slice(0, 10)
 }
 
+function asList<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : []
+}
+
+function text(value: unknown, fallback = '') {
+  if (typeof value === 'string') return value
+  if (value == null) return fallback
+  return String(value)
+}
+
 function covered(have: string[], need: string) {
-  const needle = need.trim().toLowerCase()
+  const needle = text(need).trim().toLowerCase()
+  if (!needle) return false
   return have.some((item) => {
-    const value = item.trim().toLowerCase()
+    const value = text(item).trim().toLowerCase()
+    if (!value) return false
     return value === needle || value.includes(needle) || needle.includes(value)
   })
 }
 
 function requirementChecks(item: Application) {
   const have = [
-    ...item.qualifications,
-    ...item.certifications,
-    ...item.skills,
-    ...(item.documents || []).map((doc) => doc.name),
-    ...(item.uploads || []).map((doc) => doc.name),
-  ]
-  const needed = (item.requiredDocuments || []).map((doc) => doc.name)
-  const fallback = [...(item.jobQualifications || []), ...(item.jobCertifications || []), ...(item.jobSkills || [])]
-  const unique = [...new Set((needed.length ? needed : fallback).filter(Boolean))]
+    ...asList(item.qualifications),
+    ...asList(item.certifications),
+    ...asList(item.skills),
+    ...asList(item.documents).map((doc) => text(doc.name)),
+    ...asList(item.uploads).map((doc) => text(doc.name)),
+  ].map((label) => text(label)).filter(Boolean)
+  const needed = asList(item.requiredDocuments).map((doc) => text(doc.name)).filter(Boolean)
+  const fallback = [...asList(item.jobQualifications), ...asList(item.jobCertifications), ...asList(item.jobSkills)].map((label) => text(label)).filter(Boolean)
+  const unique = [...new Set(needed.length ? needed : fallback)]
   if (unique.length === 0) {
     return have.slice(0, 6).map((label) => ({ label, ok: true }))
   }
@@ -729,14 +758,18 @@ function downloadCertificate(file: WorkerDocument | undefined, label: string) {
 }
 
 function findUploaded(item: Application, label: string): WorkerDocument | undefined {
-  const required = (item.requiredDocuments || []).find((doc) => doc.name.toLowerCase() === label.toLowerCase())
-  const fromUpload = (item.uploads || []).find((doc) => {
-    const matchName = covered([doc.name], label) || covered([label], doc.name)
+  const required = asList(item.requiredDocuments).find((doc) => text(doc.name).toLowerCase() === text(label).toLowerCase())
+  const fromUpload = asList(item.uploads).find((doc) => {
+    const name = text(doc.name)
+    const matchName = covered([name], label) || covered([label], name)
     const matchId = required && (doc.documentId === required.id || doc.id === required.id)
     return matchName || Boolean(matchId)
   })
   if (fromUpload) return fromUpload
-  return (item.documents || []).find((doc) => covered([doc.name], label) || covered([label], doc.name))
+  return asList(item.documents).find((doc) => {
+    const name = text(doc.name)
+    return covered([name], label) || covered([label], name)
+  })
 }
 
 function DocumentPreview({
