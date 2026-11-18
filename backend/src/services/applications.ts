@@ -137,18 +137,35 @@ async function hydrateApplication(row: ApplicationRow | null, deep = false) {
     String(worker?.id || ''),
     String(worker?._id || ''),
   ]) : []
-  const files = collectWorkerFiles(
-    row.sourceDoc,
-    raw,
+  const source = (row.sourceDoc || raw || {}) as Record<string, unknown>
+  const applicationFiles = collectWorkerFiles(
+    source.uploads,
+    source.documents,
+    source.files,
+    source.attachments,
+    source.documentUploads,
+    source.submittedDocuments,
+    source.requiredDocuments,
     row.uploads,
     row.applicationDocuments,
     row.applicationFiles,
     row.applicationAttachments,
-    worker,
+    raw?.uploads,
+    raw?.documents,
+    raw?.files,
+    raw?.attachments,
+  )
+  const otherFiles = collectWorkerFiles(
+    worker?.documents,
+    worker?.files,
+    worker?.uploads,
+    worker?.kycDocuments,
+    worker?.kyc,
+    worker?.idDocuments,
     related,
   )
   const required = Array.isArray(row.requiredDocuments) ? row.requiredDocuments as { id?: string; name?: string }[] : []
-  const attached = attachFilesToRequirements(files, required)
+  const attached = attachFilesToRequirements(applicationFiles, otherFiles, required)
   const {
     workerRecord: _workerRecord,
     applicationDocuments: _applicationDocuments,
@@ -157,7 +174,14 @@ async function hydrateApplication(row: ApplicationRow | null, deep = false) {
     sourceDoc: _sourceDoc,
     ...rest
   } = row
-  return { ...rest, documents: attached, uploads: attached }
+  const seen = new Set<string>()
+  const requiredUnique = required.filter((item) => {
+    const key = (item.name || '').trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return { ...rest, requiredDocuments: requiredUnique, documents: attached, uploads: attached }
 }
 
 export async function listApplications(hospitalId: string, query: { q?: string; status?: string; page?: number; limit?: number }) {

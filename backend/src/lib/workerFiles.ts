@@ -8,6 +8,7 @@ export interface WorkerFile {
   url?: string
   fileName?: string
   documentId?: string
+  contentType?: string
 }
 
 const FILE_KEYS = [
@@ -16,25 +17,21 @@ const FILE_KEYS = [
   'files',
   'attachments',
   'kycDocuments',
-  'certificates',
   'kyc',
   'proofs',
   'idDocuments',
   'documentUploads',
   'submittedDocuments',
   'idProofs',
-  'requiredDocuments',
   'applicationDocuments',
   'workerDocuments',
-  'media',
-  'images',
-  'photos',
 ]
 
 const SKIP_KEYS = new Set([
   '_id', 'id', 'password', 'passwordHash', 'hash', 'token', 'email', 'phone',
   'timeline', 'notes', 'documentReviews', 'payRules', 'payoutAccount', 'reviews',
   'job', 'hospital', 'shift', 'contract', 'notifications',
+  'qualifications', 'certifications', 'certificates', 'skills', 'experience', 'messages',
 ])
 
 const NAME_KEYS = ['name', 'title', 'label', 'type', 'kind', 'documentName', 'documentType', 'requirementName', 'requirement', 'code', 'category']
@@ -92,6 +89,7 @@ function addFile(out: WorkerFile[], seen: Set<string>, value: unknown, fallbackN
   const documentId = pick(record, DOCUMENT_ID_KEYS)
   const id = pick(record, ['id']) || documentId || (record._id ? String(record._id) : uid())
   const display = name.trim() || 'Document'
+  const contentType = pick(record, ['contentType', 'mimeType', 'mimetype']) || (typeof record.type === 'string' && record.type.includes('/') ? record.type : '')
   const key = `${documentId}|${url}|${fileName}|${display}`
   if (seen.has(key)) return
   seen.add(key)
@@ -102,6 +100,7 @@ function addFile(out: WorkerFile[], seen: Set<string>, value: unknown, fallbackN
     url: url || undefined,
     fileName: fileName || undefined,
     documentId: documentId || undefined,
+    contentType: contentType || undefined,
   })
 }
 
@@ -154,19 +153,22 @@ function tokens(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
+const GENERIC_TOKENS = new Set(['card', 'file', 'document', 'image', 'photo', 'scan', 'copy', 'pdf', 'id', 'doc', 'upload', 'certificate', 'certification', 'qualification'])
+
 function matchesName(file: WorkerFile, requiredName: string) {
   const need = tokens(requiredName)
   const have = tokens([file.name, file.fileName, file.kind, file.documentId].filter(Boolean).join(' '))
   if (!need || !have) return false
-  if (have === need || have.includes(need) || need.includes(have)) return true
+  if (have === need) return true
+  if (have.includes(need) || (need.includes(have) && have.length > 3 && !GENERIC_TOKENS.has(have))) return true
   const compactNeed = need.replace(/\s+/g, '')
   const compactHave = have.replace(/\s+/g, '')
-  if (compactHave.includes(compactNeed) || compactNeed.includes(compactHave)) return true
+  if (compactHave.includes(compactNeed) || (compactNeed.includes(compactHave) && compactHave.length > 3 && !GENERIC_TOKENS.has(have))) return true
   const aliases = [
-    ['aadhaar', 'aadhar', 'adhar', 'uidai', 'uid'],
+    ['aadhaar', 'aadhar', 'adhar', 'uidai'],
     ['pan', 'pancard'],
-    ['doctor', 'mbbs', 'medical'],
-    ['licence', 'license', 'nursing', 'rn'],
+    ['doctor', 'mbbs'],
+    ['licence', 'license', 'nursing'],
   ]
   return aliases.some((group) => (
     group.some((alias) => need.includes(alias) || compactNeed.includes(alias))
@@ -174,34 +176,62 @@ function matchesName(file: WorkerFile, requiredName: string) {
   ))
 }
 
-export function attachFilesToRequirements(files: WorkerFile[], required: { id?: string; name?: string }[]) {
-  const needed = required.filter((item) => item?.name)
-  if (!files.length) return files
+function unnamedUpload(file: WorkerFile) {
+  const name = tokens(file.name)
+  const fileName = tokens(file.fileName || '').replace(/\s[a-z0-9]+$/, '')
+  if (!name || GENERIC_TOKENS.has(name) || /^image\d*$/.test(name.replace(/\s+/g, ''))) return true
+  if (fileName && (GENERIC_TOKENS.has(fileName) || /^image\d*$/.test(fileName.replace(/\s+/g, '')))) return true
+  return false
+}
+
+function uniqueRequired(required: { id?: string; name?: string }[]) {
+  const seen = new Set<string>()
+  const out: { id?: string; name?: string }[] = []
+  for (const item of required) {
+    const key = tokens(item?.name || '')
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(item)
+  }
+  return out
+}
+
+export function attachFilesToRequirements(
+  applicationFiles: WorkerFile[],
+  otherFiles: WorkerFile[],
+  required: { id?: string; name?: string }[],
+) {
+  const needed = uniqueRequired(required)
+  if (!needed.length) return []
   const used = new Set<string>()
   const assigned: WorkerFile[] = []
 
-  function take(file: WorkerFile, name: string, documentId?: string) {
-    assigned.push({ ...file, name, documentId: file.documentId || documentId })
+  function take(file: WorkerFile, req: { id?: string; name?: string }) {
+    assigned.push({ ...file, name: req.name || file.name, documentId: file.documentId || req.id })
     used.add(fileKey(file))
   }
 
-  for (const req of needed) {
-    const match = files.find((file) => {
+  function findIn(list: WorkerFile[], req: { id?: string; name?: string }) {
+    return list.find((file) => {
       if (used.has(fileKey(file))) return false
       if (req.id && (file.documentId === req.id || file.id === req.id)) return true
       return matchesName(file, req.name || '')
     })
-    if (match) take(match, req.name || match.name, req.id)
   }
 
-  const leftover = files.filter((file) => !used.has(fileKey(file)))
-  const missing = needed.filter((req) => !assigned.some((file) => file.documentId === req.id || tokens(file.name) === tokens(req.name || '')))
-  leftover.forEach((file, index) => {
-    const req = missing[index]
-    if (req) take(file, req.name || file.name, req.id)
-    else assigned.push({ ...file, name: file.name || file.fileName || 'Document' })
-  })
-  return assigned
+  for (const req of needed) {
+    const match = findIn(applicationFiles, req) || findIn(otherFiles, req)
+    if (match) take(match, req)
+  }
+
+  const leftover = applicationFiles.filter((file) => !used.has(fileKey(file)) && unnamedUpload(file))
+  for (const req of needed) {
+    if (assigned.some((file) => file.documentId === req.id || tokens(file.name) === tokens(req.name || ''))) continue
+    const next = leftover.shift()
+    if (next) take(next, req)
+  }
+
+  return needed.map((req) => assigned.find((file) => file.documentId === req.id || tokens(file.name) === tokens(req.name || ''))).filter(Boolean) as WorkerFile[]
 }
 
 function objectIdsFor(value: string) {

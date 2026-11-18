@@ -272,8 +272,8 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
   if (query.isError || !query.data) return <ErrorState message={errorMessage(query.error)} onRetry={() => query.refetch()} />
   const item = query.data
   const certRows = certificateRows(item)
-  const checks = certRows.filter((entry) => !entry.extra)
-  const missing = checks.filter((entry) => !entry.ok)
+  const missing = certRows.filter((entry) => !entry.ok)
+  const viewingRow = certRows.find((entry) => entry.key === viewing)
   const busy = confirm.isPending || decline.isPending
   const open = OPEN.has(item.status)
   const actionError = confirm.error || decline.error || requestDocs.error || reviewDoc.error
@@ -304,6 +304,9 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
       </dl>
 
       <h3 className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Certificates</h3>
+      {certRows.length === 0 && (
+        <p className="mt-2 rounded-xl border border-line px-3 py-2.5 text-sm text-muted">No documents were requested for this post.</p>
+      )}
       <ul className="mt-2 space-y-2">
         {certRows.map((entry) => {
           const review = reviews.find((item) => text(item.label).toLowerCase() === text(entry.label).toLowerCase())
@@ -323,7 +326,7 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
                         aria-label={`View ${entry.label}`}
                         title="View"
                         className="grid h-8 w-8 place-items-center rounded-lg text-action transition-colors hover:bg-action-soft hover:text-navy"
-                        onClick={() => { setViewing(entry.label); setRejecting(false); setRejectOther('') }}
+                        onClick={() => { setViewing(entry.key); setRejecting(false); setRejectOther('') }}
                       >
                         <Eye className="h-4 w-4" />
                       </button>
@@ -455,13 +458,13 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
       )}
 
       <DocumentReviewModal
-        open={Boolean(viewing)}
-        label={viewing || ''}
+        open={Boolean(viewingRow)}
+        label={viewingRow?.label || ''}
         workerName={item.workerName}
         role={item.role}
         expiry={item.credentialExpiry}
-        file={viewing ? certRows.find((entry) => entry.label === viewing)?.file || findUploaded(item, viewing) : undefined}
-        review={viewing ? reviews.find((entry) => text(entry.label).toLowerCase() === viewing.toLowerCase()) : undefined}
+        file={viewingRow?.file}
+        review={viewingRow ? reviews.find((entry) => text(entry.label).toLowerCase() === viewingRow.label.toLowerCase()) : undefined}
         rejectReasons={rejectReasons}
         rejecting={rejecting}
         rejectCode={rejectCode}
@@ -472,9 +475,9 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
         onRejectOther={setRejectOther}
         onRejecting={setRejecting}
         onClose={() => { setViewing(null); setRejecting(false); setRejectOther('') }}
-        onVerify={() => viewing && reviewDoc.mutate({ label: viewing, status: 'verified' })}
-        onReject={() => viewing && reviewDoc.mutate({
-          label: viewing,
+        onVerify={() => viewingRow && reviewDoc.mutate({ label: viewingRow.label, status: 'verified' })}
+        onReject={() => viewingRow && reviewDoc.mutate({
+          label: viewingRow.label,
           status: 'rejected',
           reasonCode: rejectCode,
           reason: rejectCode === 'other' ? rejectOther.trim() : undefined,
@@ -577,6 +580,7 @@ function DocumentReviewModal({
         expiry={expiry}
         fileName={file?.fileName}
         url={file?.url}
+        contentType={file?.contentType}
       />
     </Modal>
   )
@@ -723,12 +727,14 @@ function text(value: unknown, fallback = '') {
 }
 
 const FILE_ALIASES = [
-  ['aadhaar', 'aadhar', 'adhar', 'uidai', 'uid', 'id proof', 'identity card'],
-  ['pan', 'pan card', 'permanent account'],
-  ['doctor', 'mbbs', 'medical certificate', 'mci', 'nmc', 'registration certificate', 'doctor certificate'],
+  ['aadhaar', 'aadhar', 'adhar', 'uidai'],
+  ['pan', 'pancard', 'permanent account'],
+  ['doctor', 'mbbs'],
 ]
 
-type CertificateRow = { key: string; label: string; ok: boolean; extra?: boolean; file?: WorkerDocument }
+const GENERIC_TOKENS = new Set(['card', 'file', 'document', 'image', 'photo', 'scan', 'copy', 'pdf', 'id', 'doc', 'upload', 'certificate', 'certification', 'qualification'])
+
+type CertificateRow = { key: string; label: string; ok: boolean; file?: WorkerDocument }
 
 function tokens(value: string) {
   return text(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
@@ -746,8 +752,9 @@ function covered(have: string[], need: string) {
     const value = tokens(item)
     const valueCompact = compact(item)
     if (!value) return false
-    if (value === needle || value.includes(needle) || needle.includes(value)) return true
-    if (valueCompact && (valueCompact.includes(needleCompact) || needleCompact.includes(valueCompact))) return true
+    if (value === needle) return true
+    if (value.includes(needle) || (needle.includes(value) && value.length > 3 && !GENERIC_TOKENS.has(value))) return true
+    if (valueCompact.includes(needleCompact) || (needleCompact.includes(valueCompact) && valueCompact.length > 3 && !GENERIC_TOKENS.has(value))) return true
     return FILE_ALIASES.some((group) => {
       const needHit = group.some((alias) => needle.includes(alias) || needleCompact.includes(alias.replace(/\s+/g, '')))
       const haveHit = group.some((alias) => value.includes(alias) || valueCompact.includes(alias.replace(/\s+/g, '')))
@@ -767,7 +774,7 @@ function fileIdentity(doc: WorkerDocument) {
 function uniqueFiles(item: Application) {
   const seen = new Set<string>()
   const out: WorkerDocument[] = []
-  for (const doc of [...asList(item.documents), ...asList(item.uploads)]) {
+  for (const doc of [...asList(item.uploads), ...asList(item.documents)]) {
     const key = fileIdentity(doc)
     if (!key || seen.has(key)) continue
     seen.add(key)
@@ -778,53 +785,31 @@ function uniqueFiles(item: Application) {
 
 function matchesRequired(doc: WorkerDocument, label: string, required?: { id: string; name: string }) {
   if (required && (doc.documentId === required.id || doc.id === required.id)) return true
-  return covered(fileLabels(doc), label) || covered([label], text(doc.name))
+  return covered(fileLabels(doc), label)
+}
+
+function requestedDocuments(item: Application) {
+  const seen = new Set<string>()
+  const out: { id: string; name: string }[] = []
+  for (const doc of asList(item.requiredDocuments)) {
+    const name = text(doc.name)
+    const key = tokens(name)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push({ id: doc.id, name })
+  }
+  return out
 }
 
 function certificateRows(item: Application): CertificateRow[] {
   const files = uniqueFiles(item)
-  const needed = asList(item.requiredDocuments).map((doc) => text(doc.name)).filter(Boolean)
-  const fallback = [...asList(item.jobQualifications), ...asList(item.jobCertifications), ...asList(item.jobSkills)].map((label) => text(label)).filter(Boolean)
-  const unique = [...new Set(needed.length ? needed : fallback)]
+  const needed = requestedDocuments(item)
   const used = new Set<string>()
-
-  function take(doc: WorkerDocument | undefined) {
-    if (!doc) return undefined
-    used.add(fileIdentity(doc))
-    return doc
-  }
-
-  const rows: CertificateRow[] = unique.map((label, index) => {
-    const required = asList(item.requiredDocuments).find((doc) => tokens(doc.name) === tokens(label))
-    const file = take(files.find((doc) => !used.has(fileIdentity(doc)) && matchesRequired(doc, label, required)))
-    return { key: `req-${required?.id || label}-${index}`, label, ok: Boolean(file), file }
+  return needed.map((required, index) => {
+    const file = files.find((doc) => !used.has(fileIdentity(doc)) && matchesRequired(doc, required.name, required))
+    if (file) used.add(fileIdentity(file))
+    return { key: `req-${required.id || required.name}-${index}`, label: required.name, ok: Boolean(file), file }
   })
-
-  const leftover = files.filter((doc) => !used.has(fileIdentity(doc)))
-  for (const row of rows) {
-    if (row.ok) continue
-    const next = leftover.shift()
-    if (!next) continue
-    used.add(fileIdentity(next))
-    row.ok = true
-    row.file = next
-  }
-
-  leftover.forEach((doc, index) => {
-    const label = text(doc.name) || text(doc.fileName) || `Uploaded document ${index + 1}`
-    rows.push({ key: `extra-${fileIdentity(doc) || index}`, label, ok: true, extra: true, file: doc })
-  })
-
-  if (!unique.length && files.length) {
-    return files.map((doc, index) => ({
-      key: `file-${fileIdentity(doc) || index}`,
-      label: text(doc.name) || text(doc.fileName) || `Uploaded document ${index + 1}`,
-      ok: true,
-      extra: true,
-      file: doc,
-    }))
-  }
-  return rows
 }
 
 function suggestedCode(missing: { label: string }[], templates: { code: string; label: string }[]) {
@@ -843,15 +828,12 @@ function downloadCertificate(file: WorkerDocument | undefined, label: string) {
   link.click()
 }
 
-function findUploaded(item: Application, label: string): WorkerDocument | undefined {
-  const required = asList(item.requiredDocuments).find((doc) => tokens(doc.name) === tokens(label))
-  const files = [...asList(item.uploads), ...asList(item.documents)]
-  return files.find((doc) => {
-    const names = fileLabels(doc)
-    const matchName = covered(names, label) || covered([label], text(doc.name))
-    const matchId = required && (doc.documentId === required.id || doc.id === required.id)
-    return matchName || Boolean(matchId)
-  })
+function previewKind(url?: string, fileName?: string, contentType?: string): 'image' | 'pdf' | 'other' | 'none' {
+  if (!url) return 'none'
+  const hint = `${contentType || ''} ${fileName || ''} ${url}`.toLowerCase()
+  if (/application\/pdf/.test(hint) || /\.pdf(\?|#|$)/i.test(hint)) return 'pdf'
+  if (/image\//.test(hint) || /\.(png|jpe?g|webp|gif|heic|bmp|svg)(\?|#|$)/i.test(hint)) return 'image'
+  return 'image'
 }
 
 function DocumentPreview({
@@ -861,6 +843,7 @@ function DocumentPreview({
   expiry,
   fileName,
   url,
+  contentType,
   large = false,
 }: {
   name: string
@@ -869,24 +852,39 @@ function DocumentPreview({
   expiry?: string
   fileName?: string
   url?: string
+  contentType?: string
   large?: boolean
 }) {
-  const image = Boolean(url && /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url))
-  const pdf = Boolean(url && /\.pdf(\?|$)/i.test(url))
+  const [kind, setKind] = useState(() => previewKind(url, fileName, contentType))
+  useEffect(() => {
+    setKind(previewKind(url, fileName, contentType))
+  }, [url, fileName, contentType])
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-canvas">
-      {url && image && (
-        <img src={url} alt={name} className={cn('w-full bg-white object-contain', large ? 'max-h-[58vh]' : 'max-h-56')} />
+      {kind === 'image' && url && (
+        <div className={cn('grid place-items-center bg-white', large ? 'min-h-[46vh]' : 'min-h-40')}>
+          <img
+            src={url}
+            alt={name}
+            className={cn('w-full object-contain', large ? 'max-h-[62vh]' : 'max-h-56')}
+            onError={() => setKind('other')}
+          />
+        </div>
       )}
-      {url && pdf && large && (
-        <iframe title={name} src={url} className="h-[58vh] w-full border-0 bg-white" />
+      {kind === 'pdf' && url && (
+        <iframe title={name} src={url} className={cn('w-full border-0 bg-white', large ? 'h-[62vh]' : 'h-56')} />
       )}
-      {url && !image && !pdf && (
-        <a href={url} target="_blank" rel="noreferrer" className="block px-3 py-3 text-sm font-semibold text-action hover:text-navy">
-          Open original file
-        </a>
+      {kind === 'other' && url && (
+        <div className="space-y-3 bg-white px-4 py-6 text-center">
+          <object data={url} type={contentType || 'application/octet-stream'} className={cn('w-full bg-white', large ? 'h-[46vh]' : 'h-40')}>
+            <p className="text-sm text-muted">This file type cannot be previewed here.</p>
+          </object>
+          <a href={url} target="_blank" rel="noreferrer" className="inline-flex text-sm font-semibold text-action hover:text-navy">
+            Open original file
+          </a>
+        </div>
       )}
-      {!url && (
+      {kind === 'none' && (
         <div className={cn('grid place-items-center bg-white text-muted', large ? 'h-[42vh]' : 'h-32')}>
           <div className="text-center">
             <FileText className="mx-auto h-10 w-10 text-faint" />
@@ -902,7 +900,7 @@ function DocumentPreview({
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink">{name}</p>
           <p className="text-xs text-muted">{workerName} · {role}</p>
-          <p className="text-[11px] text-faint">{fileName || 'Uploaded at registration'}{expiry ? ` · expires ${dayLabel(expiry)}` : ''}</p>
+          <p className="text-[11px] text-faint">{fileName || 'Uploaded for this post'}{expiry ? ` · expires ${dayLabel(expiry)}` : ''}</p>
         </div>
       </div>
     </div>

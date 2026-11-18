@@ -79,6 +79,7 @@ export interface WorkerDocument {
   url?: string
   fileName?: string
   documentId?: string
+  contentType?: string
 }
 
 export interface DocumentReview {
