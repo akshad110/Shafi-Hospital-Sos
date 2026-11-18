@@ -115,6 +115,18 @@ export async function application(id: string) {
   return data.application
 }
 
+export async function applicationFile(id: string, fileId: string, label?: string) {
+  const { data } = await client.get<Blob>(`/applications/${id}/files/${encodeURIComponent(fileId)}`, {
+    params: label ? { label } : undefined,
+    responseType: 'blob',
+    timeout: 60_000,
+  })
+  if (data.type.includes('application/json')) {
+    throw new Error('Document file is missing')
+  }
+  return data
+}
+
 export async function shortlistApplication(id: string) {
   const { data } = await client.post<{ application: Application }>(`/applications/${id}/shortlist`)
   return data.application

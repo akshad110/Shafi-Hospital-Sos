@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { getCatalog } from '../catalog.js'
 import { asyncHandler, type AuthedRequest } from '../http.js'
 import { getHospital, updateHospital } from '../services/accounts.js'
-import { confirmApplication, getApplication, listApplications, offerApplication, rejectApplication, requestDocuments, reviewApplicationDocument, shortlistApplication } from '../services/applications.js'
+import { confirmApplication, getApplication, getApplicationFile, listApplications, offerApplication, rejectApplication, requestDocuments, reviewApplicationDocument, shortlistApplication } from '../services/applications.js'
 import { changePlan, getSubscription, listBilling } from '../services/billing.js'
 import { cancelJob, createJob, getJob, listJobs, submitJob, updateJob, type JobInput } from '../services/jobs.js'
 import { addShiftNote, createTicket, getShift, getWorker, listShifts, listWorkers, upsertWorkerReview } from '../services/workforce.js'
@@ -146,6 +146,14 @@ hospitalRouter.get('/hospital/applications', asyncHandler(async (req, res) => {
 
 hospitalRouter.get('/applications/:applicationId', asyncHandler(async (req, res) => {
   found(res, await getApplication(hospitalId(req), req.params.applicationId), 'application', 'Application not found')
+}))
+
+hospitalRouter.get('/applications/:applicationId/files/:fileId', asyncHandler(async (req, res) => {
+  const file = await getApplicationFile(hospitalId(req), req.params.applicationId, req.params.fileId, typeof req.query.label === 'string' ? req.query.label : undefined)
+  res.setHeader('Content-Type', file.contentType || 'application/octet-stream')
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.fileName)}"`)
+  res.setHeader('Cache-Control', 'private, max-age=120')
+  res.send(file.data)
 }))
 
 hospitalRouter.post('/applications/:applicationId/shortlist', asyncHandler(async (req, res) => {

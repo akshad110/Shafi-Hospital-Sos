@@ -1,6 +1,6 @@
 import type { PipelineStage } from 'mongoose'
 import { Applications, Contracts, Jobs, Shifts, Workers } from '../models.js'
-import { attachFilesToRequirements, collectWorkerFiles, findRawApplication, findRelatedFileRecords, findWorkerRecord } from '../lib/workerFiles.js'
+import { attachFilesToRequirements, collectWorkerFiles, findGridFile, findRawApplication, findRelatedFileRecords, findWorkerRecord, mimeFromName, type WorkerFile } from '../lib/workerFiles.js'
 import { changed } from '../realtime.js'
 import { DOCUMENT_REJECT_REASONS, DOCUMENT_REQUESTS, documentRejectBody, documentRequestBody } from '../lib/documentRequests.js'
 import { presentDayPay, resolvePayRules } from '../lib/payRules.js'
@@ -125,8 +125,11 @@ type ApplicationRow = Record<string, unknown> & {
   jobId?: string
 }
 
-async function hydrateApplication(row: ApplicationRow | null, deep = false) {
-  if (!row) return null
+function publicFiles(files: WorkerFile[]) {
+  return files.map(({ data: _data, ...file }) => file)
+}
+
+async function resolveApplicationFiles(row: ApplicationRow, deep = false) {
   const raw = await findRawApplication(row.id, row.hospitalId) as Record<string, unknown> | null
   const worker = (row.workerRecord || (row.workerId ? await findWorkerRecord(row.workerId) : null)) as Record<string, unknown> | null
   const related = deep ? await findRelatedFileRecords([
@@ -165,7 +168,16 @@ async function hydrateApplication(row: ApplicationRow | null, deep = false) {
     related,
   )
   const required = Array.isArray(row.requiredDocuments) ? row.requiredDocuments as { id?: string; name?: string }[] : []
-  const attached = attachFilesToRequirements(applicationFiles, otherFiles, required)
+  return {
+    files: attachFilesToRequirements(applicationFiles, otherFiles, required),
+    required,
+    raw,
+  }
+}
+
+async function hydrateApplication(row: ApplicationRow | null, deep = false) {
+  if (!row) return null
+  const { files, required } = await resolveApplicationFiles(row, deep)
   const {
     workerRecord: _workerRecord,
     applicationDocuments: _applicationDocuments,
@@ -181,7 +193,42 @@ async function hydrateApplication(row: ApplicationRow | null, deep = false) {
     seen.add(key)
     return true
   })
-  return { ...rest, requiredDocuments: requiredUnique, documents: attached, uploads: attached }
+  return { ...rest, requiredDocuments: requiredUnique, documents: publicFiles(files), uploads: publicFiles(files) }
+}
+
+function sameLabel(left: string, right: string) {
+  return left.trim().toLowerCase() === right.trim().toLowerCase()
+}
+
+export async function getApplicationFile(hospitalId: string, applicationId: string, fileId: string, label?: string) {
+  const [row] = await Applications.aggregate<ApplicationRow>(joined({ hospitalId, id: applicationId }))
+  if (!row) throw httpError(404, 'Application not found')
+  const { files } = await resolveApplicationFiles(row, true)
+  const needle = decodeURIComponent(fileId || '').trim()
+  const wanted = (label || '').trim()
+  const file = files.find((item) => item.id === needle || item.documentId === needle || item.fileName === needle)
+    || files.find((item) => wanted && sameLabel(item.name, wanted))
+    || files.find((item) => sameLabel(item.name, needle))
+  if (!file) throw httpError(404, 'Document not found')
+  if (file.data?.length) {
+    return {
+      data: file.data,
+      contentType: file.contentType || mimeFromName(file.fileName),
+      fileName: file.fileName || `${file.name}.jpg`,
+    }
+  }
+  if (file.url && /^https?:\/\//i.test(file.url)) {
+    const response = await fetch(file.url)
+    if (!response.ok) throw httpError(404, 'Document file is missing')
+    return {
+      data: Buffer.from(await response.arrayBuffer()),
+      contentType: response.headers.get('content-type') || file.contentType || mimeFromName(file.fileName),
+      fileName: file.fileName || file.name,
+    }
+  }
+  const grid = await findGridFile(file.fileName || '')
+  if (grid) return grid
+  throw httpError(404, 'Document file is missing')
 }
 
 export async function listApplications(hospitalId: string, query: { q?: string; status?: string; page?: number; limit?: number }) {

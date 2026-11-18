@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { BadgeCheck, Check, ChevronLeft, ChevronRight, CircleAlert, Download, Eye, FileText } from 'lucide-react'
 import {
   application,
+  applicationFile,
   applications,
   confirmApplication,
   rejectApplication,
@@ -334,9 +335,9 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
                         type="button"
                         aria-label={`Download ${entry.label}`}
                         title="Download"
-                        disabled={!uploaded?.url}
+                        disabled={!uploaded}
                         className="grid h-8 w-8 place-items-center rounded-lg text-action transition-colors hover:bg-action-soft hover:text-navy disabled:cursor-not-allowed disabled:opacity-40"
-                        onClick={() => downloadCertificate(uploaded, entry.label)}
+                        onClick={() => downloadCertificate(id, uploaded, entry.label)}
                       >
                         <Download className="h-4 w-4" />
                       </button>
@@ -459,6 +460,7 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
 
       <DocumentReviewModal
         open={Boolean(viewingRow)}
+        applicationId={id}
         label={viewingRow?.label || ''}
         workerName={item.workerName}
         role={item.role}
@@ -489,6 +491,7 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
 
 function DocumentReviewModal({
   open,
+  applicationId,
   label,
   workerName,
   role,
@@ -509,6 +512,7 @@ function DocumentReviewModal({
   onReject,
 }: {
   open: boolean
+  applicationId: string
   label: string
   workerName: string
   role: string
@@ -574,13 +578,12 @@ function DocumentReviewModal({
     >
       <DocumentPreview
         large
+        applicationId={applicationId}
+        file={file}
         name={label}
         workerName={workerName}
         role={role}
         expiry={expiry}
-        fileName={file?.fileName}
-        url={file?.url}
-        contentType={file?.contentType}
       />
     </Modal>
   )
@@ -818,68 +821,100 @@ function suggestedCode(missing: { label: string }[], templates: { code: string; 
   return hit?.code || templates[0]?.code || 'license'
 }
 
-function downloadCertificate(file: WorkerDocument | undefined, label: string) {
-  if (!file?.url) return
+async function downloadCertificate(applicationId: string, file: WorkerDocument | undefined, label: string) {
+  if (!file) return
+  const blob = await applicationFile(applicationId, file.id, label)
+  const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
-  link.href = file.url
-  link.download = file.fileName || `${label.replace(/\s+/g, '-').toLowerCase()}.pdf`
-  link.rel = 'noreferrer'
-  link.target = '_blank'
+  link.href = url
+  link.download = file.fileName || `${label.replace(/\s+/g, '-').toLowerCase()}.jpg`
   link.click()
+  URL.revokeObjectURL(url)
 }
 
-function previewKind(url?: string, fileName?: string, contentType?: string): 'image' | 'pdf' | 'other' | 'none' {
-  if (!url) return 'none'
-  const hint = `${contentType || ''} ${fileName || ''} ${url}`.toLowerCase()
+function previewKind(fileName?: string, contentType?: string): 'image' | 'pdf' | 'other' {
+  const hint = `${contentType || ''} ${fileName || ''}`.toLowerCase()
   if (/application\/pdf/.test(hint) || /\.pdf(\?|#|$)/i.test(hint)) return 'pdf'
   if (/image\//.test(hint) || /\.(png|jpe?g|webp|gif|heic|bmp|svg)(\?|#|$)/i.test(hint)) return 'image'
   return 'image'
 }
 
 function DocumentPreview({
+  applicationId,
+  file,
   name,
   workerName,
   role,
   expiry,
-  fileName,
-  url,
-  contentType,
   large = false,
 }: {
+  applicationId: string
+  file?: WorkerDocument
   name: string
   workerName: string
   role: string
   expiry?: string
-  fileName?: string
-  url?: string
-  contentType?: string
   large?: boolean
 }) {
-  const [kind, setKind] = useState(() => previewKind(url, fileName, contentType))
+  const [src, setSrc] = useState('')
+  const [kind, setKind] = useState<'image' | 'pdf' | 'other' | 'none' | 'loading'>(file ? 'loading' : 'none')
   useEffect(() => {
-    setKind(previewKind(url, fileName, contentType))
-  }, [url, fileName, contentType])
+    let objectUrl = ''
+    let cancelled = false
+    async function load() {
+      if (!file) {
+        setKind('none')
+        return
+      }
+      setKind('loading')
+      try {
+        const blob = await applicationFile(applicationId, file.id, name)
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setSrc(objectUrl)
+        setKind(previewKind(file.fileName || name, blob.type || file.contentType))
+      } catch {
+        if (cancelled) return
+        if (file.url && /^(https?:|data:)/i.test(file.url)) {
+          setSrc(file.url)
+          setKind(previewKind(file.fileName || name, file.contentType))
+          return
+        }
+        setKind('none')
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [applicationId, file, name])
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-canvas">
-      {kind === 'image' && url && (
+      {kind === 'loading' && (
+        <div className={cn('grid place-items-center bg-white text-sm text-muted', large ? 'h-[46vh]' : 'h-32')}>
+          Loading preview…
+        </div>
+      )}
+      {kind === 'image' && src && (
         <div className={cn('grid place-items-center bg-white', large ? 'min-h-[46vh]' : 'min-h-40')}>
           <img
-            src={url}
+            src={src}
             alt={name}
             className={cn('w-full object-contain', large ? 'max-h-[62vh]' : 'max-h-56')}
             onError={() => setKind('other')}
           />
         </div>
       )}
-      {kind === 'pdf' && url && (
-        <iframe title={name} src={url} className={cn('w-full border-0 bg-white', large ? 'h-[62vh]' : 'h-56')} />
+      {kind === 'pdf' && src && (
+        <iframe title={name} src={src} className={cn('w-full border-0 bg-white', large ? 'h-[62vh]' : 'h-56')} />
       )}
-      {kind === 'other' && url && (
+      {kind === 'other' && src && (
         <div className="space-y-3 bg-white px-4 py-6 text-center">
-          <object data={url} type={contentType || 'application/octet-stream'} className={cn('w-full bg-white', large ? 'h-[46vh]' : 'h-40')}>
+          <object data={src} type={file?.contentType || 'application/octet-stream'} className={cn('w-full bg-white', large ? 'h-[46vh]' : 'h-40')}>
             <p className="text-sm text-muted">This file type cannot be previewed here.</p>
           </object>
-          <a href={url} target="_blank" rel="noreferrer" className="inline-flex text-sm font-semibold text-action hover:text-navy">
+          <a href={src} target="_blank" rel="noreferrer" className="inline-flex text-sm font-semibold text-action hover:text-navy">
             Open original file
           </a>
         </div>
@@ -888,7 +923,7 @@ function DocumentPreview({
         <div className={cn('grid place-items-center bg-white text-muted', large ? 'h-[42vh]' : 'h-32')}>
           <div className="text-center">
             <FileText className="mx-auto h-10 w-10 text-faint" />
-            <p className="mt-2 text-sm font-medium text-ink">{fileName || 'Document on file'}</p>
+            <p className="mt-2 text-sm font-medium text-ink">{file?.fileName || 'Document on file'}</p>
             <p className="mt-0.5 text-xs text-muted">No preview is available for this file.</p>
           </div>
         </div>
@@ -900,7 +935,7 @@ function DocumentPreview({
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink">{name}</p>
           <p className="text-xs text-muted">{workerName} · {role}</p>
-          <p className="text-[11px] text-faint">{fileName || 'Uploaded for this post'}{expiry ? ` · expires ${dayLabel(expiry)}` : ''}</p>
+          <p className="text-[11px] text-faint">{file?.fileName || 'Uploaded for this post'}{expiry ? ` · expires ${dayLabel(expiry)}` : ''}</p>
         </div>
       </div>
     </div>

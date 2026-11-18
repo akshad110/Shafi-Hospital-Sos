@@ -9,6 +9,7 @@ export interface WorkerFile {
   fileName?: string
   documentId?: string
   contentType?: string
+  data?: Buffer
 }
 
 const FILE_KEYS = [
@@ -35,7 +36,11 @@ const SKIP_KEYS = new Set([
 ])
 
 const NAME_KEYS = ['name', 'title', 'label', 'type', 'kind', 'documentName', 'documentType', 'requirementName', 'requirement', 'code', 'category']
-const URL_KEYS = ['url', 'fileUrl', 'secure_url', 'secureUrl', 'downloadURL', 'downloadUrl', 'signedUrl', 'path', 'src', 'uri', 'href', 'link', 'location', 'imageUrl', 'image', 'photo']
+const URL_KEYS = [
+  'url', 'fileUrl', 'secure_url', 'secureUrl', 'downloadURL', 'downloadUrl', 'signedUrl',
+  'publicUrl', 'remoteUrl', 'file_url', 'download_url', 'signed_url', 'webViewLink', 'webContentLink',
+  'path', 'src', 'uri', 'href', 'link', 'location', 'imageUrl', 'image', 'photo', 'fullPath',
+]
 const FILE_NAME_KEYS = ['fileName', 'filename', 'originalName', 'originalname', 'key']
 const DOCUMENT_ID_KEYS = ['documentId', 'requirementId', 'requiredDocumentId', 'docId', 'requirement', 'document_id']
 
@@ -58,7 +63,52 @@ function fileKey(file: WorkerFile) {
 }
 
 function looksLikeUrl(value: string) {
-  return /^(https?:\/\/|\/uploads\/|\/files\/|data:)/i.test(value)
+  return /^(https?:\/\/|\/\/|\/uploads\/|\/files\/|data:|gs:\/\/)/i.test(value)
+}
+
+export function mimeFromName(fileName = '', fallback = 'application/octet-stream') {
+  const name = fileName.toLowerCase()
+  if (name.endsWith('.pdf')) return 'application/pdf'
+  if (name.endsWith('.png')) return 'image/png'
+  if (name.endsWith('.webp')) return 'image/webp'
+  if (name.endsWith('.gif')) return 'image/gif'
+  if (name.endsWith('.heic') || name.endsWith('.heif')) return 'image/heic'
+  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg'
+  return fallback
+}
+
+export function asBuffer(value: unknown): Buffer | undefined {
+  if (!value) return undefined
+  if (Buffer.isBuffer(value)) return value.length ? value : undefined
+  if (value instanceof Uint8Array) return value.length ? Buffer.from(value) : undefined
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.startsWith('data:') && trimmed.includes('base64,')) {
+      return Buffer.from(trimmed.slice(trimmed.indexOf('base64,') + 7), 'base64')
+    }
+    if (trimmed.length > 200 && /^[A-Za-z0-9+/=\s]+$/.test(trimmed.slice(0, 120))) {
+      try {
+        const bytes = Buffer.from(trimmed.replace(/\s+/g, ''), 'base64')
+        if (bytes.length > 40) return bytes
+      } catch {
+        return undefined
+      }
+    }
+    return undefined
+  }
+  const record = asRecord(value)
+  if (!record) return undefined
+  if (record._bsontype === 'Binary' && record.buffer) return asBuffer(record.buffer)
+  if (record.type === 'Buffer' && Array.isArray(record.data)) return Buffer.from(record.data as number[])
+  if (typeof record.base64 === 'string') return asBuffer(record.base64)
+  for (const key of ['data', 'buffer', 'bytes', 'content']) {
+    const nested = record[key]
+    if (nested && nested !== value) {
+      const bytes = asBuffer(nested)
+      if (bytes) return bytes
+    }
+  }
+  return undefined
 }
 
 function looksLikeFile(record: Record<string, unknown>) {
@@ -66,8 +116,20 @@ function looksLikeFile(record: Record<string, unknown>) {
     pick(record, URL_KEYS)
     || pick(record, FILE_NAME_KEYS)
     || pick(record, DOCUMENT_ID_KEYS)
-    || (typeof record.data === 'string' && record.data.length > 40)
+    || asBuffer(record.data)
+    || asBuffer(record.buffer)
+    || asBuffer(record.bytes)
+    || asBuffer(record.content)
+    || asBuffer(record.file)
+    || asBuffer(record.fileData)
   )
+}
+
+function publicUrl(value: string) {
+  if (!value) return ''
+  if (value.startsWith('//')) return `https:${value}`
+  if (looksLikeUrl(value) && !value.startsWith('file:') && !value.startsWith('gs:')) return value
+  return ''
 }
 
 function addFile(out: WorkerFile[], seen: Set<string>, value: unknown, fallbackName = '') {
@@ -85,14 +147,16 @@ function addFile(out: WorkerFile[], seen: Set<string>, value: unknown, fallbackN
   if (!looksLikeFile(record)) return
   const fileName = pick(record, FILE_NAME_KEYS)
   const name = pick(record, NAME_KEYS) || fallbackName || fileName.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ')
-  const url = pick(record, URL_KEYS)
+  const url = publicUrl(pick(record, URL_KEYS))
   const documentId = pick(record, DOCUMENT_ID_KEYS)
-  const id = pick(record, ['id']) || documentId || (record._id ? String(record._id) : uid())
   const display = name.trim() || 'Document'
-  const contentType = pick(record, ['contentType', 'mimeType', 'mimetype']) || (typeof record.type === 'string' && record.type.includes('/') ? record.type : '')
-  const key = `${documentId}|${url}|${fileName}|${display}`
+  const contentType = pick(record, ['contentType', 'mimeType', 'mimetype']) || (typeof record.type === 'string' && record.type.includes('/') ? record.type : '') || mimeFromName(fileName)
+  const data = asBuffer(record.data) || asBuffer(record.buffer) || asBuffer(record.bytes) || asBuffer(record.content) || asBuffer(record.file) || asBuffer(record.fileData) || asBuffer(record.image) || asBuffer(record.base64)
+  const id = pick(record, ['id']) || documentId || (record._id ? String(record._id) : [fileName, display, url, documentId].filter(Boolean).join('|') || uid())
+  const key = `${documentId}|${url}|${fileName}|${display}|${data?.length || 0}`
   if (seen.has(key)) return
   seen.add(key)
+  if (!url && !fileName && !documentId && !data) return
   out.push({
     id,
     name: display,
@@ -101,6 +165,7 @@ function addFile(out: WorkerFile[], seen: Set<string>, value: unknown, fallbackN
     fileName: fileName || undefined,
     documentId: documentId || undefined,
     contentType: contentType || undefined,
+    data,
   })
 }
 
@@ -322,4 +387,39 @@ export async function findRelatedFileRecords(ids: string[]) {
     }
   }
   return out
+}
+
+export async function findGridFile(fileName: string) {
+  const db = mongoose.connection.db
+  if (!db || !fileName) return null
+  let collections: { name: string }[] = []
+  try {
+    collections = await db.listCollections().toArray()
+  } catch {
+    return null
+  }
+  const buckets = [...new Set(collections.map((item) => item.name).filter((name) => name.endsWith('.files')).map((name) => name.replace(/\.files$/, '')))]
+  for (const bucketName of buckets) {
+    try {
+      const meta = await db.collection(`${bucketName}.files`).findOne({
+        $or: [{ filename: fileName }, { 'metadata.originalName': fileName }, { 'metadata.fileName': fileName }],
+      })
+      if (!meta) continue
+      const bucket = new mongoose.mongo.GridFSBucket(db, { bucketName })
+      const chunks: Buffer[] = []
+      await new Promise<void>((resolve, reject) => {
+        bucket.openDownloadStream(meta._id)
+          .on('data', (chunk) => chunks.push(chunk as Buffer))
+          .on('error', reject)
+          .on('end', () => resolve())
+      })
+      const data = Buffer.concat(chunks)
+      if (!data.length) continue
+      const contentType = typeof meta.contentType === 'string' ? meta.contentType : mimeFromName(fileName)
+      return { data, contentType, fileName }
+    } catch {
+      /* skip bucket */
+    }
+  }
+  return null
 }
