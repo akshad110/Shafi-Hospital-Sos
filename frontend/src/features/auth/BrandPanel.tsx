@@ -24,7 +24,7 @@ export function AuthLayout({
       <main
         className={cn(
           'relative z-[1] flex min-h-screen min-w-0 items-center justify-center bg-canvas px-4 py-8 sm:py-10',
-          'lg:-ml-24 lg:pl-40 lg:pr-8 lg:[clip-path:ellipse(86%_88%_at_100%_50%)] lg:[filter:drop-shadow(-16px_0_24px_rgba(8,20,50,0.14))]',
+          'lg:-ml-48 lg:pl-64 lg:pr-8 lg:[clip-path:ellipse(90%_90%_at_100%_50%)] lg:[filter:drop-shadow(-16px_0_24px_rgba(8,20,50,0.14))]',
           mainClassName,
         )}
       >
@@ -36,7 +36,7 @@ export function AuthLayout({
 
 export function BrandPanel() {
   return (
-    <section className="relative hidden flex-col justify-between overflow-hidden px-12 py-12 pr-20 text-white lg:flex">
+    <section className="relative hidden flex-col justify-between overflow-hidden px-12 py-12 pr-28 text-white lg:flex">
       <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border border-white/10" />
       <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full border border-white/10" />
       <div className="relative">
