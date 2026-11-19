@@ -10,7 +10,7 @@ import { addShiftNote, createTicket, getShift, getWorker, listShifts, listWorker
 
 export const hospitalRouter = Router()
 
-const jobSchema = z.object({
+const jobFields = z.object({
   title: z.string().min(3, 'Add a job title'),
   department: z.string().trim().min(2, 'Choose a department'),
   role: z.string().trim().min(2, 'Choose a role'),
@@ -54,7 +54,9 @@ const jobSchema = z.object({
   notes: z.string().optional().default(''),
   urgent: z.boolean().default(false),
   status: z.enum(['draft', 'pending_review', 'approved']).optional(),
-}).refine((value) => !value.endDate || value.endDate >= value.date, {
+})
+
+const jobSchema = jobFields.refine((value) => !value.endDate || value.endDate >= value.date, {
   message: 'End date cannot be before the start date.',
   path: ['endDate'],
 })
@@ -131,7 +133,7 @@ hospitalRouter.post('/jobs', asyncHandler(async (req, res) => {
 }))
 
 hospitalRouter.patch('/jobs/:jobId', asyncHandler(async (req, res) => {
-  const body = jobSchema.partial().parse(req.body)
+  const body = jobFields.partial().parse(req.body)
   found(res, await updateJob(hospitalId(req), req.params.jobId, body), 'job', 'Request not found')
 }))
 
