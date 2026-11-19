@@ -59,6 +59,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     socket.on('connect', () => {
       setStatus('live')
+      queryClient.invalidateQueries()
     })
     socket.on('disconnect', () => setStatus('offline'))
     socket.io.on('reconnect_attempt', () => setStatus('connecting'))
@@ -90,9 +91,22 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       queue(['notifications'])
     })
 
+    const pollKeys = ['applications', 'application', 'jobs', 'notifications', 'shifts', 'workers']
+    const refreshVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      for (const key of pollKeys) queryClient.invalidateQueries({ queryKey: [key] })
+    }
+    const onVisible = () => refreshVisible()
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    const poll = window.setInterval(refreshVisible, 10_000)
+
     return () => {
       window.clearTimeout(timer.current)
       window.clearTimeout(retry)
+      window.clearInterval(poll)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
       socket.off('connect')
       socket.off('disconnect')
       socket.off('connect_error')

@@ -2,7 +2,7 @@ import { dehydrate, hydrate, type QueryClient } from '@tanstack/react-query'
 import { applications, catalog, contracts, jobs, notifications, shifts, subscription } from '../services/api'
 import { markSignedIn } from '../services/api/client'
 
-const CACHE_KEY = 'hos_qc_v4'
+const CACHE_KEY = 'hos_qc_v5'
 const MAX_BYTES = 1_400_000
 
 export function restoreQueryCache(client: QueryClient) {
@@ -10,6 +10,7 @@ export function restoreQueryCache(client: QueryClient) {
     const raw = localStorage.getItem(CACHE_KEY)
     if (!raw) return
     hydrate(client, JSON.parse(raw))
+    void client.invalidateQueries()
   } catch {
     try {
       localStorage.removeItem(CACHE_KEY)
@@ -33,7 +34,11 @@ export function persistQueryCache(client: QueryClient) {
   const save = () => {
     try {
       const state = dehydrate(client, {
-        shouldDehydrateQuery: (query) => query.state.status === 'success',
+        shouldDehydrateQuery: (query) => {
+          if (query.state.status !== 'success') return false
+          const key = query.queryKey[0]
+          return key !== 'application' && key !== 'applications'
+        },
       })
       const payload = JSON.stringify(state)
       if (payload.length > MAX_BYTES) return

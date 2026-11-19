@@ -8,10 +8,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     const next = new QueryClient({
       defaultOptions: {
         queries: {
-          staleTime: 3 * 60_000,
+          staleTime: 15_000,
           gcTime: 30 * 60_000,
           retry: 1,
-          refetchOnWindowFocus: false,
+          refetchOnWindowFocus: 'always',
           refetchOnReconnect: true,
           placeholderData: (previous: unknown) => previous,
         },

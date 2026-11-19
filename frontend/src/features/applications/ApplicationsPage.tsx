@@ -72,8 +72,11 @@ export default function ApplicationsPage() {
     queryKey: ['applications', { term, status, page }],
     queryFn: () => applications({ q: term || undefined, status: status || undefined, page, limit: PAGE_SIZE }),
     placeholderData: keepPreviousData,
-    staleTime: 15_000,
+    staleTime: 0,
     refetchOnMount: 'always',
+    refetchInterval: 8_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: 'always',
   })
 
   function update(key: string, value?: string) {
@@ -240,7 +243,9 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
     queryFn: () => application(id),
     staleTime: 0,
     refetchOnMount: 'always',
-    refetchInterval: 12_000,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: 'always',
   })
 
   function refresh() {
@@ -620,6 +625,8 @@ function ApplicationTimelineCard({ id }: { id: string }) {
     queryFn: () => application(id),
     staleTime: 0,
     refetchOnMount: 'always',
+    refetchInterval: 8_000,
+    refetchOnWindowFocus: 'always',
   })
   if (query.isLoading) {
     return <Card className="p-5"><Skeleton className="h-24" /></Card>
@@ -795,16 +802,19 @@ function fileLabels(doc: WorkerDocument) {
   return [doc.name, doc.fileName, doc.kind, doc.documentId].map((value) => text(value)).filter(Boolean)
 }
 
-function fileIdentity(doc: WorkerDocument) {
-  return text(doc.url) || text(doc.id) || text(doc.fileName) || text(doc.documentId) || text(doc.name)
+function fileIdentity(doc: WorkerDocument, index = 0) {
+  const hard = [text(doc.url), text(doc.id), text(doc.fileName), text(doc.documentId)].filter(Boolean).join('|')
+  if (hard) return hard
+  const name = text(doc.name)
+  return name && name !== 'Document' ? `name:${name}` : `anon-${index}`
 }
 
 function uniqueFiles(item: Application) {
   const seen = new Set<string>()
   const out: WorkerDocument[] = []
-  for (const doc of [...asList(item.uploads), ...asList(item.documents)]) {
-    const key = fileIdentity(doc)
-    if (!key || seen.has(key)) continue
+  for (const [index, doc] of [...asList(item.uploads), ...asList(item.documents)].entries()) {
+    const key = fileIdentity(doc, index)
+    if (seen.has(key)) continue
     seen.add(key)
     out.push(doc)
   }
@@ -833,11 +843,21 @@ function certificateRows(item: Application): CertificateRow[] {
   const files = uniqueFiles(item)
   const needed = requestedDocuments(item)
   const used = new Set<string>()
-  return needed.map((required, index) => {
-    const file = files.find((doc) => !used.has(fileIdentity(doc)) && matchesRequired(doc, required.name, required))
-    if (file) used.add(fileIdentity(file))
+  const rows = needed.map((required, index) => {
+    const file = files.find((doc, fileIndex) => !used.has(fileIdentity(doc, fileIndex)) && matchesRequired(doc, required.name, required))
+    if (file) used.add(fileIdentity(file, files.indexOf(file)))
     return { key: `req-${required.id || required.name}-${index}`, label: required.name, ok: Boolean(file), file }
   })
+  const leftover = files.filter((doc, fileIndex) => !used.has(fileIdentity(doc, fileIndex)))
+  for (const row of rows) {
+    if (row.file) continue
+    const next = leftover.shift()
+    if (!next) break
+    used.add(fileIdentity(next, files.indexOf(next)))
+    row.file = next
+    row.ok = true
+  }
+  return rows
 }
 
 function suggestedCode(missing: { label: string }[], templates: { code: string; label: string }[]) {

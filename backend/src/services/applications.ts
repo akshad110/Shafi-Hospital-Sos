@@ -1,6 +1,6 @@
 import type { PipelineStage } from 'mongoose'
 import { Applications, Contracts, Jobs, Shifts, Workers } from '../models.js'
-import { attachFilesToRequirements, attachLooseBytes, collectWorkerFiles, findGridFile, findRawApplication, findRelatedFileRecords, findWorkerRecord, mimeFromBytes, mimeFromName, type WorkerFile } from '../lib/workerFiles.js'
+import { attachFilesToRequirements, attachLooseBytes, collectWorkerFiles, findGridFile, findGridFilesFor, findRawApplication, findRelatedFileRecords, findWorkerRecord, mimeFromBytes, mimeFromName, type WorkerFile } from '../lib/workerFiles.js'
 import { changed } from '../realtime.js'
 import { DOCUMENT_REJECT_REASONS, DOCUMENT_REQUESTS, documentRejectBody, documentRequestBody } from '../lib/documentRequests.js'
 import { presentDayPay, resolvePayRules } from '../lib/payRules.js'
@@ -159,6 +159,7 @@ async function resolveApplicationFiles(row: ApplicationRow, deep = false) {
     source.attachments,
     source.documentUploads,
     source.submittedDocuments,
+    source.uploadedDocuments,
     source.requiredDocuments,
     row.uploads,
     row.applicationDocuments,
@@ -175,14 +176,21 @@ async function resolveApplicationFiles(row: ApplicationRow, deep = false) {
     worker?.idDocuments,
     related,
   )
+  if (deep) {
+    const gridFiles = await findGridFilesFor([
+      row.id,
+      String(raw?._id || ''),
+      String(row.workerId || ''),
+      String(row.jobId || ''),
+      String(worker?.id || ''),
+      String(worker?._id || ''),
+    ])
+    applicationFiles.push(...gridFiles)
+  }
+  attachLooseBytes(applicationFiles, source, raw)
+  attachLooseBytes(otherFiles, worker, related)
   const required = Array.isArray(row.requiredDocuments) ? row.requiredDocuments as { id?: string; name?: string }[] : []
-  const files = attachLooseBytes(
-    attachFilesToRequirements(applicationFiles, otherFiles, required),
-    source,
-    raw,
-    worker,
-    related,
-  )
+  const files = attachFilesToRequirements(applicationFiles, otherFiles, required)
   return { files, required, raw, worker }
 }
 

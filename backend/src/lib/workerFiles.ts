@@ -19,13 +19,19 @@ const FILE_KEYS = [
   'attachments',
   'kycDocuments',
   'kyc',
+  'kycDocs',
   'proofs',
   'idDocuments',
   'documentUploads',
   'submittedDocuments',
+  'uploadedDocuments',
   'idProofs',
   'applicationDocuments',
   'workerDocuments',
+  'media',
+  'images',
+  'photos',
+  'docs',
 ]
 
 const SKIP_KEYS = new Set([
@@ -35,7 +41,7 @@ const SKIP_KEYS = new Set([
   'qualifications', 'certifications', 'certificates', 'skills', 'experience', 'messages',
 ])
 
-const NAME_KEYS = ['name', 'title', 'label', 'type', 'kind', 'documentName', 'documentType', 'requirementName', 'requirement', 'code', 'category']
+const NAME_KEYS = ['documentName', 'documentType', 'requirementName', 'label', 'title', 'name', 'requirement', 'code', 'category', 'kind', 'docType', 'doc_type', 'kycType', 'proofType']
 const URL_KEYS = [
   'url', 'fileUrl', 'secure_url', 'secureUrl', 'downloadURL', 'downloadUrl', 'signedUrl',
   'publicUrl', 'remoteUrl', 'file_url', 'download_url', 'signed_url', 'webViewLink', 'webContentLink',
@@ -57,6 +63,21 @@ function pick(record: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
     const value = record[key]
     if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return ''
+}
+
+function isMimeLike(value: string) {
+  return /^(image|video|application|text|audio)\b/i.test(value) || value.includes('/')
+}
+
+function pickName(record: Record<string, unknown>) {
+  for (const key of NAME_KEYS) {
+    const value = record[key]
+    if (typeof value !== 'string') continue
+    const trimmed = value.trim()
+    if (!trimmed || isMimeLike(trimmed)) continue
+    return trimmed
   }
   return ''
 }
@@ -244,21 +265,22 @@ function addFile(out: WorkerFile[], seen: Set<string>, value: unknown, fallbackN
   }
   if (!looksLikeFile(record) && !firstUrl(record) && !firstBuffer(record)) return
   const fileName = pick(record, FILE_NAME_KEYS)
-  const name = pick(record, NAME_KEYS) || fallbackName || fileName.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ')
+  const name = pickName(record) || fallbackName || fileName.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ')
   const url = firstUrl(record)
   const documentId = pick(record, DOCUMENT_ID_KEYS)
   const display = name.trim() || 'Document'
   const contentType = pick(record, ['contentType', 'mimeType', 'mimetype']) || (typeof record.type === 'string' && record.type.includes('/') ? record.type : '') || mimeFromName(fileName)
   const data = firstBuffer(record)
-  const id = pick(record, ['id']) || documentId || (record._id ? String(record._id) : [fileName, display, url, documentId].filter(Boolean).join('|') || uid())
-  const key = `${documentId}|${url}|${fileName}|${display}|${data?.length || 0}`
+  const id = pick(record, ['id']) || documentId || (record._id ? String(record._id) : [fileName, display, url, documentId, String(data?.length || 0)].filter(Boolean).join('|') || uid())
+  const key = `${documentId}|${url}|${fileName}|${display}|${data?.length || 0}|${id}`
   if (seen.has(key)) return
   seen.add(key)
   if (!url && !fileName && !documentId && !data) return
+  const kind = pick(record, ['kind']) || pickName(record) || undefined
   out.push({
     id,
     name: display,
-    kind: pick(record, ['kind', 'type']) || undefined,
+    kind: kind && !isMimeLike(kind) ? kind : undefined,
     url: url || undefined,
     fileName: fileName || undefined,
     documentId: documentId || undefined,
@@ -301,6 +323,11 @@ export function collectWorkerFiles(...sources: unknown[]): WorkerFile[] {
         addFile(out, seen, { name: childName, url: nested }, childName)
         continue
       }
+      const bytes = asBuffer(nested)
+      if (bytes && bytes.length > 80) {
+        addFile(out, seen, { name: childName, data: bytes, fileName: pick(child || {}, FILE_NAME_KEYS) || childName }, childName)
+        continue
+      }
       if (child) walk(nested, depth + 1, childName)
     }
   }
@@ -336,11 +363,16 @@ function matchesName(file: WorkerFile, requiredName: string) {
   ))
 }
 
+function cameraRollName(value: string) {
+  const compact = tokens(value).replace(/\s+/g, '')
+  return /^(img|image|photo|pic|scan|whatsapp|wa|dsc|pxl|vid|screenshot|file)\d/i.test(compact)
+}
+
 function unnamedUpload(file: WorkerFile) {
   const name = tokens(file.name)
   const fileName = tokens(file.fileName || '').replace(/\s[a-z0-9]+$/, '')
-  if (!name || GENERIC_TOKENS.has(name) || /^image\d*$/.test(name.replace(/\s+/g, ''))) return true
-  if (fileName && (GENERIC_TOKENS.has(fileName) || /^image\d*$/.test(fileName.replace(/\s+/g, '')))) return true
+  if (!name || GENERIC_TOKENS.has(name) || /^image\d*$/.test(name.replace(/\s+/g, '')) || cameraRollName(name)) return true
+  if (fileName && (GENERIC_TOKENS.has(fileName) || /^image\d*$/.test(fileName.replace(/\s+/g, '')) || cameraRollName(fileName) || cameraRollName(file.fileName || ''))) return true
   return false
 }
 
@@ -384,9 +416,32 @@ export function attachFilesToRequirements(
     if (match) take(match, req)
   }
 
-  const leftover = applicationFiles.filter((file) => !used.has(fileKey(file)) && unnamedUpload(file))
+  function unused(list: WorkerFile[]) {
+    return list.filter((file) => !used.has(fileKey(file)))
+  }
+
+  function rank(file: WorkerFile) {
+    if (file.data?.length) return 0
+    if (file.url) return 1
+    if (file.fileName) return 2
+    return 3
+  }
+
+  const leftover: WorkerFile[] = []
+  const leftoverSeen = new Set<string>()
+  for (const file of [
+    ...unused(applicationFiles).filter(unnamedUpload),
+    ...unused(applicationFiles),
+    ...unused(otherFiles).filter(unnamedUpload),
+  ].sort((left, right) => rank(left) - rank(right))) {
+    const key = fileKey(file)
+    if (leftoverSeen.has(key) || used.has(key)) continue
+    leftoverSeen.add(key)
+    leftover.push(file)
+  }
+
   for (const req of needed) {
-    if (assigned.some((file) => file.documentId === req.id || tokens(file.name) === tokens(req.name || ''))) continue
+    if (assigned.some((file) => (req.id && file.documentId === req.id) || tokens(file.name) === tokens(req.name || ''))) continue
     const next = leftover.shift()
     if (next) take(next, req)
   }
@@ -551,6 +606,65 @@ export async function findGridFile(fileName: string, ids: string[] = []) {
   return null
 }
 
+export async function findGridFilesFor(ids: string[]) {
+  const db = mongoose.connection.db
+  if (!db) return []
+  const unique = [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))]
+  if (!unique.length) return []
+  let collections: { name: string }[] = []
+  try {
+    collections = await db.listCollections().toArray()
+  } catch {
+    return []
+  }
+  const buckets = [...new Set(collections.map((item) => item.name).filter((name) => name.endsWith('.files')).map((name) => name.replace(/\.files$/, '')))]
+  const objectIds = unique.map(asObjectId).filter(Boolean) as mongoose.Types.ObjectId[]
+  const clauses: Record<string, unknown>[] = [
+    { 'metadata.applicationId': { $in: unique } },
+    { 'metadata.workerId': { $in: unique } },
+    { 'metadata.jobId': { $in: unique } },
+    { 'metadata.ownerId': { $in: unique } },
+    { 'metadata.userId': { $in: unique } },
+    { 'metadata.uploadedBy': { $in: unique } },
+    { filename: { $in: unique } },
+  ]
+  if (objectIds.length) {
+    clauses.push(
+      { 'metadata.applicationId': { $in: objectIds } },
+      { 'metadata.workerId': { $in: objectIds } },
+      { _id: { $in: objectIds } },
+    )
+  }
+  const out: WorkerFile[] = []
+  const seen = new Set<string>()
+  for (const bucketName of buckets) {
+    try {
+      const rows = await db.collection(`${bucketName}.files`).find({ $or: clauses }).limit(20).toArray()
+      const bucket = new mongoose.mongo.GridFSBucket(db, { bucketName })
+      for (const meta of rows) {
+        const id = String(meta._id)
+        if (seen.has(id)) continue
+        const data = await readGridStream(bucket, meta._id as mongoose.Types.ObjectId)
+        if (!data.length || !isRenderableFile(data)) continue
+        seen.add(id)
+        const storedName = typeof meta.filename === 'string' ? meta.filename : ''
+        const metaRecord = asRecord(meta.metadata) || {}
+        out.push({
+          id,
+          name: pickName(metaRecord) || storedName.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ') || 'Document',
+          fileName: storedName || undefined,
+          documentId: pick(metaRecord, DOCUMENT_ID_KEYS) || undefined,
+          contentType: typeof meta.contentType === 'string' ? meta.contentType : mimeFromBytes(data, storedName),
+          data,
+        })
+      }
+    } catch {
+      /* skip bucket */
+    }
+  }
+  return out
+}
+
 function isRenderableFile(data: Buffer) {
   if (!data || data.length < 80) return false
   if (data[0] === 0xff && data[1] === 0xd8) return true
@@ -580,17 +694,35 @@ export function collectLooseBytes(value: unknown, depth = 0, nearbyName = ''): {
   return out
 }
 
+function binKey(data: Buffer) {
+  return `${data.length}:${data.subarray(0, 24).toString('hex')}`
+}
+
 export function attachLooseBytes(files: WorkerFile[], ...sources: unknown[]) {
   const bins = sources.flatMap((source) => collectLooseBytes(source))
   const used = new Set<number>()
+  const seenBytes = new Set(files.map((file) => (file.data?.length ? binKey(file.data) : '')).filter(Boolean))
   for (const file of files) {
     if (file.data && file.data.length) continue
     const index = bins.findIndex((item, i) => !used.has(i) && item.fileName && file.fileName && item.fileName === file.fileName)
-    const fallback = index < 0 ? bins.findIndex((item, i) => !used.has(i)) : index
+    const fallback = index < 0 ? bins.findIndex((item, i) => !used.has(i) && !seenBytes.has(binKey(item.data))) : index
     if (fallback < 0) continue
     used.add(fallback)
     file.data = bins[fallback].data
-    if (!file.contentType) file.contentType = mimeFromName(file.fileName, 'image/jpeg')
+    seenBytes.add(binKey(bins[fallback].data))
+    if (!file.contentType) file.contentType = mimeFromBytes(bins[fallback].data, file.fileName, 'image/jpeg')
   }
+  bins.forEach((item, index) => {
+    if (used.has(index) || seenBytes.has(binKey(item.data))) return
+    used.add(index)
+    seenBytes.add(binKey(item.data))
+    files.push({
+      id: uid(),
+      name: item.fileName.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ') || 'Document',
+      fileName: item.fileName || undefined,
+      contentType: mimeFromBytes(item.data, item.fileName, 'image/jpeg'),
+      data: item.data,
+    })
+  })
   return files
 }

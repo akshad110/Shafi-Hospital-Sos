@@ -52,31 +52,63 @@ const ENTITY_BY_COLLECTION: Record<string, Entity[]> = {
   invoices: ['billing'],
 }
 
+function entitiesForCollection(name: string): Entity[] | null {
+  if (ENTITY_BY_COLLECTION[name]) return ENTITY_BY_COLLECTION[name]
+  if (name === 'notifications' || name === 'catalogs') return null
+  if (name.endsWith('.files') || name.endsWith('.chunks') || /doc|upload|file|kyc|media|attach|cert|proof|image/i.test(name)) {
+    return ['applications', 'workers']
+  }
+  return null
+}
+
+async function hospitalIdFromDoc(doc: Record<string, unknown>) {
+  const direct = String(doc.hospitalId || doc.hospital_id || '')
+  if (direct) return direct
+  const db = mongoose.connection.db
+  if (!db) return ''
+  const ids = [doc.applicationId, doc.jobId, doc.workerId, doc.userId, doc.uid]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  for (const id of ids) {
+    try {
+      const application = await db.collection('applications').findOne(
+        { $or: [{ id }, { jobId: id }, { workerId: id }] },
+        { projection: { hospitalId: 1 } },
+      )
+      if (application?.hospitalId) return String(application.hospitalId)
+    } catch {
+      /* skip */
+    }
+  }
+  return ''
+}
+
 /**
- * Mirrors writes made by any client of the database (for example the admin panel)
- * to connected hospital sockets. Requires a replica set, which Atlas always provides.
+ * Mirrors writes made by any client of the database (for example the admin panel
+ * or the worker app) to connected hospital sockets. Requires a replica set.
  */
 export async function watchDatabase() {
   if (!(await supportsChangeStreams())) {
     console.log('Realtime: standalone MongoDB, broadcasting API writes only (change streams need a replica set).')
     return
   }
-  const collections = [...Object.keys(ENTITY_BY_COLLECTION), 'notifications', 'catalogs']
   const stream = mongoose.connection.watch(
-    [{ $match: { operationType: { $in: ['insert', 'update', 'replace'] }, 'ns.coll': { $in: collections } } }],
+    [{ $match: { operationType: { $in: ['insert', 'update', 'replace'] } } }],
     { fullDocument: 'updateLookup' },
   )
   stream.on('change', async (event) => {
     if (!('fullDocument' in event) || !event.fullDocument) return
     const collection = event.ns.coll
+    if (collection.startsWith('system.')) return
     const doc = event.fullDocument as Record<string, unknown>
     if (collection === 'catalogs') {
       io?.emit('data:changed', { entities: ['catalog'] })
       return
     }
-    const hospitalId = String(collection === 'hospitals' ? doc.id : doc.hospitalId || '')
-    if (!hospitalId) return
+    const entities = entitiesForCollection(collection)
+    const hospitalId = collection === 'hospitals' ? String(doc.id || '') : await hospitalIdFromDoc(doc)
     if (collection === 'notifications') {
+      if (!hospitalId) return
       const unread = await Notifications.countDocuments({ hospitalId, read: false })
       if (event.operationType === 'insert') {
         const { _id, ...notification } = doc
@@ -87,7 +119,12 @@ export async function watchDatabase() {
       }
       return
     }
-    changed(hospitalId, ...ENTITY_BY_COLLECTION[collection])
+    if (!entities?.length) return
+    if (hospitalId) {
+      changed(hospitalId, ...entities)
+      return
+    }
+    io?.emit('data:changed', { entities })
   })
   stream.on('error', (error) => console.error('Realtime change stream stopped:', error.message))
   console.log('Realtime: watching MongoDB change streams.')
