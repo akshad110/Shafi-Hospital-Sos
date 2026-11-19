@@ -245,6 +245,7 @@ export const Applications = define<Application>('applications', {
     at: String,
   })],
   uploads: { type: [Schema.Types.Mixed], default: [] },
+  scopedUploads: { type: [Schema.Types.Mixed], default: [] },
 }, [{ hospitalId: 1, appliedAt: -1 }], false)
 
 export const Contracts = define<Contract>('contracts', {

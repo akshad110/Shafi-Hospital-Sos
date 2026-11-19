@@ -1,6 +1,6 @@
 import type { PipelineStage } from 'mongoose'
 import { Applications, Contracts, Jobs, Shifts, Workers } from '../models.js'
-import { attachFilesToRequirements, attachLooseBytes, collectWorkerFiles, findGridFile, findGridFilesFor, findRawApplication, findRelatedFileRecords, findWorkerRecord, mimeFromBytes, mimeFromName, type WorkerFile } from '../lib/workerFiles.js'
+import { attachFilesToRequirements, attachLooseBytes, belongsToPost, collectWorkerFiles, findGridFile, findGridFilesFor, findRawApplication, findRelatedFileRecords, findWorkerRecord, mimeFromBytes, mimeFromName, scopedFileId, type WorkerFile } from '../lib/workerFiles.js'
 import { changed } from '../realtime.js'
 import { DOCUMENT_REJECT_REASONS, DOCUMENT_REQUESTS, documentRejectBody, documentRequestBody } from '../lib/documentRequests.js'
 import { presentDayPay, resolvePayRules } from '../lib/payRules.js'
@@ -101,6 +101,7 @@ function joined(match: Record<string, unknown>): PipelineStage[] {
         documents: { $ifNull: ['$worker.documents', []] },
         documentReviews: { $ifNull: ['$documentReviews', []] },
         uploads: { $ifNull: ['$uploads', []] },
+        scopedUploads: { $ifNull: ['$scopedUploads', []] },
         applicationDocuments: { $ifNull: ['$documents', []] },
         applicationFiles: { $ifNull: ['$files', []] },
         applicationAttachments: { $ifNull: ['$attachments', []] },
@@ -116,6 +117,7 @@ type ApplicationRow = Record<string, unknown> & {
   hospitalId: string
   workerId?: string
   uploads?: unknown
+  scopedUploads?: unknown
   documents?: unknown
   applicationDocuments?: unknown
   applicationFiles?: unknown
@@ -126,11 +128,11 @@ type ApplicationRow = Record<string, unknown> & {
   jobId?: string
 }
 
-function publicFiles(files: WorkerFile[]) {
+function publicFiles(files: WorkerFile[], embed = true) {
   return files.map((file) => {
     const { data, ...rest } = file
     if (rest.url) return rest
-    if (data && data.length && data.length <= 4_500_000) {
+    if (embed && data && data.length && data.length <= 4_500_000) {
       const mime = mimeFromBytes(data, file.fileName, file.contentType || 'image/jpeg')
       return { ...rest, url: `data:${mime};base64,${data.toString('base64')}` }
     }
@@ -138,17 +140,36 @@ function publicFiles(files: WorkerFile[]) {
   })
 }
 
+function rememberScopedUploads(hospitalId: string, applicationId: string, jobId: string, files: WorkerFile[]) {
+  const uploads = files.map((file) => ({
+    id: file.id,
+    documentId: file.documentId,
+    applicationId,
+    jobId,
+    name: file.name,
+    url: file.url && !file.url.startsWith('data:') ? file.url : undefined,
+    fileName: file.fileName,
+    contentType: file.contentType,
+    at: nowIso(),
+  }))
+  void Applications.updateOne({ hospitalId, id: applicationId }, { $set: { scopedUploads: uploads } }).catch(() => undefined)
+}
+
 async function resolveApplicationFiles(row: ApplicationRow, deep = false) {
   const raw = await findRawApplication(row.id, row.hospitalId) as Record<string, unknown> | null
   const worker = (row.workerRecord || (row.workerId ? await findWorkerRecord(row.workerId) : null)) as Record<string, unknown> | null
-  const related = deep ? await findRelatedFileRecords([
+  const related = deep ? (await findRelatedFileRecords([
     row.id,
     String(raw?._id || ''),
-    String(row.workerId || ''),
-    String(row.jobId || ''),
-    String(worker?.id || ''),
-    String(worker?._id || ''),
-  ]) : []
+  ])).filter((item) => {
+    const record = item && typeof item === 'object' ? item as Record<string, unknown> : null
+    if (!record) return false
+    const app = String(record.applicationId || record.application_id || '')
+    const job = String(record.jobId || record.job_id || '')
+    if (app) return app === row.id
+    if (job) return Boolean(row.jobId) && job === String(row.jobId)
+    return false
+  }) : []
   const source = (row.sourceDoc || raw || {}) as Record<string, unknown>
   const applicationFiles = collectWorkerFiles(
     source,
@@ -160,37 +181,27 @@ async function resolveApplicationFiles(row: ApplicationRow, deep = false) {
     source.documentUploads,
     source.submittedDocuments,
     source.uploadedDocuments,
+    source.scopedUploads,
     source.requiredDocuments,
     row.uploads,
+    row.scopedUploads,
     row.applicationDocuments,
     row.applicationFiles,
     row.applicationAttachments,
-  )
+  ).filter((file) => belongsToPost(file, row.id, String(row.jobId || '')))
   const otherFiles = collectWorkerFiles(
-    worker,
-    worker?.documents,
-    worker?.files,
-    worker?.uploads,
-    worker?.kycDocuments,
-    worker?.kyc,
-    worker?.idDocuments,
     related,
-  )
+  ).filter((file) => belongsToPost(file, row.id, String(row.jobId || ''), true))
   if (deep) {
     const gridFiles = await findGridFilesFor([
       row.id,
       String(raw?._id || ''),
-      String(row.workerId || ''),
-      String(row.jobId || ''),
-      String(worker?.id || ''),
-      String(worker?._id || ''),
     ])
-    applicationFiles.push(...gridFiles)
+    applicationFiles.push(...gridFiles.filter((file) => belongsToPost(file, row.id, String(row.jobId || ''))))
   }
   attachLooseBytes(applicationFiles, source, raw)
-  attachLooseBytes(otherFiles, worker, related)
   const required = Array.isArray(row.requiredDocuments) ? row.requiredDocuments as { id?: string; name?: string }[] : []
-  const files = attachFilesToRequirements(applicationFiles, otherFiles, required)
+  const files = attachFilesToRequirements(applicationFiles, otherFiles, required, { applicationId: row.id, jobId: String(row.jobId || '') })
   return { files, required, raw, worker }
 }
 
@@ -203,6 +214,7 @@ async function hydrateApplication(row: ApplicationRow | null, deep = false) {
     applicationFiles: _applicationFiles,
     applicationAttachments: _applicationAttachments,
     sourceDoc: _sourceDoc,
+    scopedUploads: _scopedUploads,
     ...rest
   } = row
   const seen = new Set<string>()
@@ -212,7 +224,8 @@ async function hydrateApplication(row: ApplicationRow | null, deep = false) {
     seen.add(key)
     return true
   })
-  return { ...rest, requiredDocuments: requiredUnique, documents: publicFiles(files), uploads: publicFiles(files) }
+  if (deep) rememberScopedUploads(row.hospitalId, row.id, String(row.jobId || ''), files)
+  return { ...rest, requiredDocuments: requiredUnique, documents: publicFiles(files, deep), uploads: publicFiles(files, deep) }
 }
 
 function sameLabel(left: string, right: string) {
@@ -222,15 +235,16 @@ function sameLabel(left: string, right: string) {
 export async function getApplicationFile(hospitalId: string, applicationId: string, fileId: string, label?: string, fileName?: string) {
   const [row] = await Applications.aggregate<ApplicationRow>(joined({ hospitalId, id: applicationId }))
   if (!row) throw httpError(404, 'Application not found')
-  const { files, raw, worker } = await resolveApplicationFiles(row, true)
+  const { files, raw } = await resolveApplicationFiles(row, true)
   const needle = decodeURIComponent(fileId || '').trim()
   const wanted = (label || '').trim()
   const named = (fileName || '').trim()
-  const file = files.find((item) => item.id === needle || item.documentId === needle || item.fileName === needle)
-    || files.find((item) => named && item.fileName === named)
-    || files.find((item) => wanted && sameLabel(item.name, wanted))
-    || files.find((item) => sameLabel(item.name, needle))
-    || files[0]
+  const scoped = files.filter((item) => belongsToPost(item, applicationId, String(row.jobId || '')))
+  const file = scoped.find((item) => item.id === needle)
+    || scoped.find((item) => needle && item.documentId === needle)
+    || scoped.find((item) => wanted && item.id === scopedFileId(applicationId, item.documentId || ''))
+    || scoped.find((item) => wanted && sameLabel(item.name, wanted))
+    || scoped.find((item) => named && item.fileName === named)
   const fileNameHint = named || file?.fileName || needle
   function payload(data: Buffer, name?: string, contentType?: string) {
     return {
@@ -239,8 +253,9 @@ export async function getApplicationFile(hospitalId: string, applicationId: stri
       fileName: name || `${file?.name || 'document'}.jpg`,
     }
   }
-  if (file?.data?.length) return payload(file.data, file.fileName, file.contentType)
-  if (file?.url && /^(https?:|data:)/i.test(file.url)) {
+  if (!file) throw httpError(404, 'Document file is missing')
+  if (file.data?.length) return payload(file.data, file.fileName, file.contentType)
+  if (file.url && /^(https?:|data:)/i.test(file.url)) {
     if (file.url.startsWith('data:') && file.url.includes('base64,')) {
       return payload(Buffer.from(file.url.slice(file.url.indexOf('base64,') + 7), 'base64'), file.fileName || fileNameHint, file.contentType)
     }
@@ -249,12 +264,11 @@ export async function getApplicationFile(hospitalId: string, applicationId: stri
       return payload(Buffer.from(await response.arrayBuffer()), file.fileName || fileNameHint, response.headers.get('content-type') || file.contentType)
     }
   }
-  const grid = await findGridFile(fileNameHint, [needle, file?.id || '', file?.documentId || '', String((raw as { _id?: unknown } | null)?._id || '')])
+  const grid = await findGridFile(file.fileName || fileNameHint, [file.id, file.documentId || '', applicationId, String((raw as { _id?: unknown } | null)?._id || '')])
   if (grid) return payload(grid.data, grid.fileName || fileNameHint, grid.contentType)
   const loose = attachLooseBytes(
-    [{ id: needle, name: wanted || 'Document', fileName: fileNameHint, data: undefined }],
+    [{ id: file.id, name: file.name, fileName: file.fileName || fileNameHint, data: undefined }],
     raw,
-    worker,
     row.sourceDoc,
   )[0]
   if (loose?.data?.length) return payload(loose.data, fileNameHint)
@@ -461,14 +475,13 @@ export async function reviewApplicationDocument(
   }
   await Applications.updateOne({ hospitalId, id }, { $set: { documentReviews: reviews, status: nextStatus }, $push: push })
   changed(hospitalId, 'applications', 'notifications')
-  const worker = await Workers.findOne({ hospitalId, id: current.workerId }, { name: 1 }).lean<Worker>()
-  await notify(hospitalId, {
+  void notify(hospitalId, {
     type: 'application',
     title: input.status === 'verified' ? `Verified ${label}` : `${label} not verified`,
-    body: input.status === 'verified' ? `${worker?.name || 'Worker'} · ${label}` : body,
+    body: input.status === 'verified' ? `${label}` : body,
     href: `/applications?id=${id}`,
   })
-  return getApplication(hospitalId, id)
+  return { ...current, documentReviews: reviews, status: nextStatus }
 }
 
 function addDays(date: string, days: number) {

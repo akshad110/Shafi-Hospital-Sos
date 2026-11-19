@@ -80,6 +80,8 @@ export interface WorkerDocument {
   url?: string
   fileName?: string
   documentId?: string
+  applicationId?: string
+  jobId?: string
   contentType?: string
 }
 

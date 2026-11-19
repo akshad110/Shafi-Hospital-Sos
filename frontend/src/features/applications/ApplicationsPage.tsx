@@ -272,7 +272,42 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
   })
   const reviewDoc = useMutation({
     mutationFn: (body: { label: string; status: 'verified' | 'rejected'; reasonCode?: string; reason?: string }) => reviewApplicationDocument(id, body),
-    onSuccess: () => { setRejecting(false); setRejectOther(''); setViewing(null); return refresh() },
+    onMutate: async (body) => {
+      await queryClient.cancelQueries({ queryKey: ['application', id] })
+      const previous = queryClient.getQueryData<Application>(['application', id])
+      if (previous) {
+        const reviews = [...asList(previous.documentReviews)]
+        const index = reviews.findIndex((item) => text(item.label).toLowerCase() === body.label.toLowerCase())
+        const review = {
+          id: index >= 0 ? reviews[index].id : crypto.randomUUID(),
+          label: body.label,
+          status: body.status,
+          reason: body.reason || '',
+          at: new Date().toISOString(),
+        }
+        if (index >= 0) reviews[index] = review
+        else reviews.push(review)
+        queryClient.setQueryData<Application>(['application', id], {
+          ...previous,
+          documentReviews: reviews,
+          status: body.status === 'rejected' && previous.status !== 'confirmed' && previous.status !== 'rejected' ? 'needs_update' : previous.status,
+        })
+      }
+      setRejecting(false)
+      setRejectOther('')
+      setViewing(null)
+      return { previous }
+    },
+    onError: (_error, _body, context) => {
+      if (context?.previous) queryClient.setQueryData(['application', id], context.previous)
+    },
+    onSuccess: (application) => {
+      queryClient.setQueryData<Application>(['application', id], (current) => (
+        current ? { ...current, ...application, documents: current.documents, uploads: current.uploads, requiredDocuments: current.requiredDocuments } : application
+      ))
+      void queryClient.invalidateQueries({ queryKey: ['applications'] })
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
   })
 
   if (query.isLoading) return <div className="space-y-3"><Skeleton className="h-12" /><Skeleton className="h-32" /></div>
@@ -821,8 +856,9 @@ function uniqueFiles(item: Application) {
   return out
 }
 
-function matchesRequired(doc: WorkerDocument, label: string, required?: { id: string; name: string }) {
-  if (required && (doc.documentId === required.id || doc.id === required.id)) return true
+function matchesRequired(doc: WorkerDocument, label: string, required?: { id: string; name: string }, applicationId?: string) {
+  if (applicationId && doc.applicationId && doc.applicationId !== applicationId) return false
+  if (required && (doc.documentId === required.id || doc.id === required.id || doc.id === `appdoc:${applicationId}:${required.id}`)) return true
   return covered(fileLabels(doc), label)
 }
 
@@ -840,24 +876,14 @@ function requestedDocuments(item: Application) {
 }
 
 function certificateRows(item: Application): CertificateRow[] {
-  const files = uniqueFiles(item)
+  const files = uniqueFiles(item).filter((doc) => !doc.applicationId || doc.applicationId === item.id)
   const needed = requestedDocuments(item)
   const used = new Set<string>()
-  const rows = needed.map((required, index) => {
-    const file = files.find((doc, fileIndex) => !used.has(fileIdentity(doc, fileIndex)) && matchesRequired(doc, required.name, required))
+  return needed.map((required, index) => {
+    const file = files.find((doc, fileIndex) => !used.has(fileIdentity(doc, fileIndex)) && matchesRequired(doc, required.name, required, item.id))
     if (file) used.add(fileIdentity(file, files.indexOf(file)))
     return { key: `req-${required.id || required.name}-${index}`, label: required.name, ok: Boolean(file), file }
   })
-  const leftover = files.filter((doc, fileIndex) => !used.has(fileIdentity(doc, fileIndex)))
-  for (const row of rows) {
-    if (row.file) continue
-    const next = leftover.shift()
-    if (!next) break
-    used.add(fileIdentity(next, files.indexOf(next)))
-    row.file = next
-    row.ok = true
-  }
-  return rows
 }
 
 function suggestedCode(missing: { label: string }[], templates: { code: string; label: string }[]) {
@@ -928,10 +954,9 @@ function DocumentPreview({
       if (ready) {
         setSrc(ready)
         setKind(previewKind(file.fileName || name, file.contentType, ready))
-        if (ready.startsWith('data:')) return
-      } else {
-        setKind('loading')
+        return
       }
+      setKind('loading')
       try {
         const blob = await applicationFile(applicationId, file.id || file.fileName || 'file', name, file.fileName)
         if (cancelled) return

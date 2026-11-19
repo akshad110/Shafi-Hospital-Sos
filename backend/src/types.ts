@@ -194,6 +194,7 @@ export interface Application {
   messages: WorkerMessage[]
   documentReviews: DocumentReview[]
   uploads?: { id: string; documentId?: string; name: string; url?: string; fileName?: string; contentType?: string; at: string }[]
+  scopedUploads?: { id: string; documentId?: string; applicationId?: string; jobId?: string; name: string; url?: string; fileName?: string; contentType?: string; at: string }[]
 }
 
 export interface Attendance {

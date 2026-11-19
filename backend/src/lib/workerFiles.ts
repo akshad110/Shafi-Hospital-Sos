@@ -8,8 +8,18 @@ export interface WorkerFile {
   url?: string
   fileName?: string
   documentId?: string
+  applicationId?: string
+  jobId?: string
   contentType?: string
   data?: Buffer
+}
+
+export function scopedFileId(applicationId: string, requirementId: string) {
+  return `appdoc:${applicationId}:${requirementId}`
+}
+
+export function requirementKey(value?: string) {
+  return (value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'doc'
 }
 
 const FILE_KEYS = [
@@ -51,6 +61,8 @@ const URL_KEYS = [
 ]
 const FILE_NAME_KEYS = ['fileName', 'filename', 'originalName', 'originalname', 'originalFilename', 'original_filename', 'key']
 const DOCUMENT_ID_KEYS = ['documentId', 'requirementId', 'requiredDocumentId', 'docId', 'requirement', 'document_id', 'fileId', 'gridFsId', 'gridfsId']
+const APPLICATION_ID_KEYS = ['applicationId', 'application_id', 'jobApplicationId']
+const JOB_ID_KEYS = ['jobId', 'job_id', 'postId', 'post_id']
 const BUFFER_KEYS = ['data', 'buffer', 'bytes', 'content', 'file', 'fileData', 'binary', 'blob', 'body', 'image', 'pdf', 'base64', 'base64Data', 'fileBase64', 'data_base64']
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -268,11 +280,13 @@ function addFile(out: WorkerFile[], seen: Set<string>, value: unknown, fallbackN
   const name = pickName(record) || fallbackName || fileName.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ')
   const url = firstUrl(record)
   const documentId = pick(record, DOCUMENT_ID_KEYS)
+  const applicationId = pick(record, APPLICATION_ID_KEYS)
+  const jobId = pick(record, JOB_ID_KEYS)
   const display = name.trim() || 'Document'
   const contentType = pick(record, ['contentType', 'mimeType', 'mimetype']) || (typeof record.type === 'string' && record.type.includes('/') ? record.type : '') || mimeFromName(fileName)
   const data = firstBuffer(record)
-  const id = pick(record, ['id']) || documentId || (record._id ? String(record._id) : [fileName, display, url, documentId, String(data?.length || 0)].filter(Boolean).join('|') || uid())
-  const key = `${documentId}|${url}|${fileName}|${display}|${data?.length || 0}|${id}`
+  const id = pick(record, ['id']) || documentId || (record._id ? String(record._id) : [applicationId, jobId, fileName, display, url, documentId, String(data?.length || 0)].filter(Boolean).join('|') || uid())
+  const key = `${applicationId}|${jobId}|${documentId}|${url}|${fileName}|${display}|${data?.length || 0}|${id}`
   if (seen.has(key)) return
   seen.add(key)
   if (!url && !fileName && !documentId && !data) return
@@ -284,6 +298,8 @@ function addFile(out: WorkerFile[], seen: Set<string>, value: unknown, fallbackN
     url: url || undefined,
     fileName: fileName || undefined,
     documentId: documentId || undefined,
+    applicationId: applicationId || undefined,
+    jobId: jobId || undefined,
     contentType: contentType || undefined,
     data,
   })
@@ -388,18 +404,36 @@ function uniqueRequired(required: { id?: string; name?: string }[]) {
   return out
 }
 
+export function belongsToPost(file: WorkerFile, applicationId: string, _jobId = '', requireTag = false) {
+  const app = (file.applicationId || '').trim()
+  if (file.id.startsWith(`appdoc:${applicationId}:`)) return true
+  if (app) return app === applicationId
+  return !requireTag
+}
+
 export function attachFilesToRequirements(
   applicationFiles: WorkerFile[],
   otherFiles: WorkerFile[],
   required: { id?: string; name?: string }[],
+  scope?: { applicationId: string; jobId?: string },
 ) {
   const needed = uniqueRequired(required)
   if (!needed.length) return []
   const used = new Set<string>()
   const assigned: WorkerFile[] = []
+  const applicationId = scope?.applicationId || ''
+  const jobId = scope?.jobId || ''
 
   function take(file: WorkerFile, req: { id?: string; name?: string }) {
-    assigned.push({ ...file, name: req.name || file.name, documentId: file.documentId || req.id })
+    const requirementId = req.id || requirementKey(req.name)
+    assigned.push({
+      ...file,
+      id: applicationId ? scopedFileId(applicationId, requirementId) : file.id,
+      name: req.name || file.name,
+      documentId: requirementId,
+      applicationId: applicationId || file.applicationId,
+      jobId: jobId || file.jobId,
+    })
     used.add(fileKey(file))
   }
 
@@ -411,8 +445,10 @@ export function attachFilesToRequirements(
     })
   }
 
+  const scopedOthers = otherFiles.filter((file) => belongsToPost(file, applicationId, jobId, true))
+
   for (const req of needed) {
-    const match = findIn(applicationFiles, req) || findIn(otherFiles, req)
+    const match = findIn(applicationFiles, req) || findIn(scopedOthers, req)
     if (match) take(match, req)
   }
 
@@ -432,7 +468,6 @@ export function attachFilesToRequirements(
   for (const file of [
     ...unused(applicationFiles).filter(unnamedUpload),
     ...unused(applicationFiles),
-    ...unused(otherFiles).filter(unnamedUpload),
   ].sort((left, right) => rank(left) - rank(right))) {
     const key = fileKey(file)
     if (leftoverSeen.has(key) || used.has(key)) continue
