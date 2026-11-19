@@ -11,7 +11,7 @@ import {
   requestApplicationDocuments,
   reviewApplicationDocument,
 } from '../../services/api'
-import { cn, dayLabel, errorMessage, initials, money, STATUS_LABEL, unitLabel, when } from '../../lib/utils'
+import { cn, dayLabel, dayRange, errorMessage, initials, money, STATUS_LABEL, unitLabel, when } from '../../lib/utils'
 import { useCatalog } from '../../hooks/useCatalog'
 import { useDebounced } from '../../hooks/useDebounced'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
@@ -174,7 +174,7 @@ export default function ApplicationsPage() {
                         <span className="shrink-0 text-right">
                           <span className="block text-sm font-semibold text-ink">{money(item.amount)}</span>
                           <span className="mt-1 block text-xs text-muted">{when(item.appliedAt)}</span>
-                          {item.shiftDate && <span className="mt-0.5 hidden text-xs text-muted sm:block">{dayLabel(item.shiftDate)}</span>}
+                          {item.shiftDate && <span className="mt-0.5 hidden text-xs text-muted sm:block">{dayRange(item.shiftDate, item.shiftEndDate)}</span>}
                         </span>
                       </button>
                     </li>
@@ -234,6 +234,7 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
   const [rejecting, setRejecting] = useState(false)
   const [rejectCode, setRejectCode] = useState(FALLBACK_REJECT[0].code)
   const [rejectOther, setRejectOther] = useState('')
+  const [hireHint, setHireHint] = useState('')
   const query = useQuery({
     queryKey: ['application', id],
     queryFn: () => application(id),
@@ -279,6 +280,10 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
   const open = OPEN.has(item.status)
   const actionError = confirm.error || decline.error || requestDocs.error || reviewDoc.error
   const reviews = asList(item.documentReviews)
+  const rejectedDocs = certRows.filter((entry) => reviews.find((review) => text(review.label).toLowerCase() === text(entry.label).toLowerCase())?.status === 'rejected')
+  const unverifiedDocs = certRows.filter((entry) => reviews.find((review) => text(review.label).toLowerCase() === text(entry.label).toLowerCase())?.status !== 'verified')
+  const hireLocked = rejectedDocs.length > 0
+  const hireReady = certRows.length === 0 || unverifiedDocs.length === 0
   const declineNote = declineReason === 'Other' ? declineOther.trim() : declineReason
   const template = templates.find((entry) => entry.code === code)
   const customName = customDoc.trim() || 'document'
@@ -300,7 +305,7 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
 
       <dl className="mt-4 divide-y divide-line rounded-xl border border-line text-sm">
         <div className="flex justify-between gap-3 px-3.5 py-2"><dt className="text-muted">Request</dt><dd className="text-right font-medium text-ink">{item.jobTitle}</dd></div>
-        <div className="flex justify-between gap-3 px-3.5 py-2"><dt className="text-muted">Shift</dt><dd className="text-right font-medium text-ink">{dayLabel(item.shiftDate)} · {item.startTime}–{item.endTime}</dd></div>
+        <div className="flex justify-between gap-3 px-3.5 py-2"><dt className="text-muted">Shift</dt><dd className="text-right font-medium text-ink">{dayRange(item.shiftDate, item.shiftEndDate)} · {item.startTime}–{item.endTime}</dd></div>
         <div className="flex justify-between gap-3 px-3.5 py-2"><dt className="text-muted">Pay</dt><dd className="font-medium text-ink">{money(item.amount)}{unitLabel(item.paymentUnit)}</dd></div>
       </dl>
 
@@ -365,7 +370,27 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Button variant="outline" disabled={busy} onClick={() => { setCode(suggestedCode(missing, templates)); setPanel('ask') }}>Ask to update</Button>
           <Button variant="danger" disabled={busy} onClick={() => setPanel('decline')}>Decline</Button>
-          <Button className="col-span-2" disabled={busy} onClick={() => setPanel('confirm')}>Confirm hire</Button>
+          <Button
+            className="col-span-2"
+            disabled={busy || hireLocked}
+            onClick={() => {
+              if (hireLocked) return
+              if (!hireReady) {
+                setHireHint('Verify the docs')
+                return
+              }
+              setHireHint('')
+              setPanel('confirm')
+            }}
+          >
+            Confirm hire
+          </Button>
+          {hireLocked && (
+            <p className="col-span-2 text-sm font-medium text-danger">A document was rejected. Recheck it and verify before confirming this hire.</p>
+          )}
+          {!hireLocked && !hireReady && hireHint && (
+            <p className="col-span-2 text-sm font-medium text-danger">{hireHint}</p>
+          )}
         </div>
       )}
 
@@ -428,7 +453,7 @@ function ApplicationDetail({ id, hideTimeline = false }: { id: string; hideTimel
         </div>
       )}
 
-      {panel === 'confirm' && (
+      {panel === 'confirm' && hireReady && !hireLocked && (
         <div className="mt-4 rounded-2xl border border-brand/30 bg-mint/50 p-3.5">
           <p className="text-sm font-semibold text-ink">Confirm this hire?</p>
           <p className="mt-1 text-sm leading-6 text-muted">
@@ -823,7 +848,16 @@ function suggestedCode(missing: { label: string }[], templates: { code: string; 
 
 async function downloadCertificate(applicationId: string, file: WorkerDocument | undefined, label: string) {
   if (!file) return
-  const blob = await applicationFile(applicationId, file.id, label)
+  if (file.url && /^(https?:|data:)/i.test(file.url)) {
+    const link = document.createElement('a')
+    link.href = file.url
+    link.download = file.fileName || `${label.replace(/\s+/g, '-').toLowerCase()}.jpg`
+    link.target = '_blank'
+    link.rel = 'noreferrer'
+    link.click()
+    return
+  }
+  const blob = await applicationFile(applicationId, file.id, label, file.fileName)
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
@@ -832,10 +866,10 @@ async function downloadCertificate(applicationId: string, file: WorkerDocument |
   URL.revokeObjectURL(url)
 }
 
-function previewKind(fileName?: string, contentType?: string): 'image' | 'pdf' | 'other' {
-  const hint = `${contentType || ''} ${fileName || ''}`.toLowerCase()
-  if (/application\/pdf/.test(hint) || /\.pdf(\?|#|$)/i.test(hint)) return 'pdf'
-  if (/image\//.test(hint) || /\.(png|jpe?g|webp|gif|heic|bmp|svg)(\?|#|$)/i.test(hint)) return 'image'
+function previewKind(fileName?: string, contentType?: string, url?: string): 'image' | 'pdf' | 'other' {
+  const hint = `${contentType || ''} ${fileName || ''} ${url || ''}`.toLowerCase()
+  if (/application\/pdf/.test(hint) || /\.pdf(\?|#|$)/i.test(hint) || hint.includes('data:application/pdf')) return 'pdf'
+  if (/image\//.test(hint) || /\.(png|jpe?g|webp|gif|heic|bmp|svg)(\?|#|$)/i.test(hint) || hint.includes('data:image')) return 'image'
   return 'image'
 }
 
@@ -856,30 +890,37 @@ function DocumentPreview({
   expiry?: string
   large?: boolean
 }) {
-  const [src, setSrc] = useState('')
-  const [kind, setKind] = useState<'image' | 'pdf' | 'other' | 'none' | 'loading'>(file ? 'loading' : 'none')
+  const direct = file?.url?.trim() && /^(https?:|data:)/i.test(file.url.trim()) ? file.url.trim() : ''
+  const [src, setSrc] = useState(direct)
+  const [kind, setKind] = useState<'image' | 'pdf' | 'other' | 'none' | 'loading'>(
+    direct ? previewKind(file?.fileName || name, file?.contentType, direct) : file ? 'loading' : 'none',
+  )
   useEffect(() => {
     let objectUrl = ''
     let cancelled = false
     async function load() {
       if (!file) {
+        setSrc('')
         setKind('none')
         return
       }
-      setKind('loading')
+      const ready = file.url?.trim() && /^(https?:|data:)/i.test(file.url.trim()) ? file.url.trim() : ''
+      if (ready) {
+        setSrc(ready)
+        setKind(previewKind(file.fileName || name, file.contentType, ready))
+        if (ready.startsWith('data:')) return
+      } else {
+        setKind('loading')
+      }
       try {
-        const blob = await applicationFile(applicationId, file.id, name)
+        const blob = await applicationFile(applicationId, file.id || file.fileName || 'file', name, file.fileName)
         if (cancelled) return
         objectUrl = URL.createObjectURL(blob)
         setSrc(objectUrl)
-        setKind(previewKind(file.fileName || name, blob.type || file.contentType))
+        setKind(previewKind(file.fileName || name, blob.type || file.contentType, file.fileName))
       } catch {
         if (cancelled) return
-        if (file.url && /^(https?:|data:)/i.test(file.url)) {
-          setSrc(file.url)
-          setKind(previewKind(file.fileName || name, file.contentType))
-          return
-        }
+        if (ready) return
         setKind('none')
       }
     }
@@ -902,7 +943,7 @@ function DocumentPreview({
             src={src}
             alt={name}
             className={cn('w-full object-contain', large ? 'max-h-[62vh]' : 'max-h-56')}
-            onError={() => setKind('other')}
+            onError={() => setKind(src ? 'other' : 'none')}
           />
         </div>
       )}

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, MapPin, Plus, Siren, Users } from 'lucide-react'
 import { cancelJob, createJob, jobs, submitJob } from '../../services/api'
-import { cn, dayLabel, errorMessage, money, placeLabel, sosPlaces, unitLabel } from '../../lib/utils'
+import { cn, dayLabel, dayRange, errorMessage, money, placeLabel, sosPlaces, unitLabel } from '../../lib/utils'
 import { useRoleOptions } from '../../hooks/useCatalog'
 import type { Job } from '../../types/domain'
 import { useSession } from '../../app/session'
@@ -153,7 +153,7 @@ function JobRow({ job, active, onSelect }: { job: Job; active: boolean; onSelect
         </div>
         <p className="mt-1 text-sm text-muted">{job.role} · {job.department}</p>
         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-          <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{dayLabel(job.date)} · {job.startTime}–{job.endTime}</span>
+          <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{dayRange(job.date, job.endDate)} · {job.startTime}–{job.endTime}</span>
           <span className={cn('inline-flex items-center gap-1', job.urgent && 'font-medium text-sos')}>
             <MapPin className="h-3.5 w-3.5" />
             {job.urgent ? `Emergency · ${job.location}` : job.location}
@@ -198,7 +198,7 @@ function RequestDetail({ job, bare }: { job: Job; bare?: boolean }) {
       )}
 
       <dl className="mt-4 divide-y divide-line rounded-xl border border-line text-sm">
-        <Row label="When" value={`${dayLabel(job.date)} · ${job.startTime}–${job.endTime}`} />
+        <Row label="When" value={`${dayRange(job.date, job.endDate)} · ${job.startTime}–${job.endTime}`} />
         {!job.urgent && <Row label="Where" value={job.location} />}
         <Row label="People" value={`${job.workersNeeded}`} />
         <Row label="Pay" value={`${money(job.amount)}${unitLabel(job.paymentUnit)}`} />

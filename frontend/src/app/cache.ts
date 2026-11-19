@@ -2,7 +2,7 @@ import { dehydrate, hydrate, type QueryClient } from '@tanstack/react-query'
 import { applications, catalog, contracts, jobs, notifications, shifts, subscription } from '../services/api'
 import { markSignedIn } from '../services/api/client'
 
-const CACHE_KEY = 'hos_qc_v3'
+const CACHE_KEY = 'hos_qc_v4'
 const MAX_BYTES = 1_400_000
 
 export function restoreQueryCache(client: QueryClient) {

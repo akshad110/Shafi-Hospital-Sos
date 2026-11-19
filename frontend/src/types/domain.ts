@@ -47,6 +47,7 @@ export interface Job {
   requiredDocuments?: { id: string; name: string; instruction?: string }[]
   workersNeeded: number
   date: string
+  endDate?: string
   startTime: string
   endTime: string
   shiftType: 'day' | 'night' | 'rotating'
@@ -111,6 +112,7 @@ export interface Application {
   amount: number
   paymentUnit: string
   shiftDate: string
+  shiftEndDate?: string
   startTime: string
   endTime: string
   location: string

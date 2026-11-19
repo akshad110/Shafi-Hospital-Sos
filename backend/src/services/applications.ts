@@ -1,10 +1,10 @@
 import type { PipelineStage } from 'mongoose'
 import { Applications, Contracts, Jobs, Shifts, Workers } from '../models.js'
-import { attachFilesToRequirements, collectWorkerFiles, findGridFile, findRawApplication, findRelatedFileRecords, findWorkerRecord, mimeFromName, type WorkerFile } from '../lib/workerFiles.js'
+import { attachFilesToRequirements, attachLooseBytes, collectWorkerFiles, findGridFile, findRawApplication, findRelatedFileRecords, findWorkerRecord, mimeFromBytes, mimeFromName, type WorkerFile } from '../lib/workerFiles.js'
 import { changed } from '../realtime.js'
 import { DOCUMENT_REJECT_REASONS, DOCUMENT_REQUESTS, documentRejectBody, documentRequestBody } from '../lib/documentRequests.js'
 import { presentDayPay, resolvePayRules } from '../lib/payRules.js'
-import { escapeRegex, httpError, nowIso, paging, shiftHours, uid, ymd } from '../lib/util.js'
+import { daysInclusive, escapeRegex, httpError, nowIso, paging, shiftHours, uid, ymd } from '../lib/util.js'
 import { liveShiftStatus } from './payroll.js'
 import { notify } from './notifications.js'
 import type { Application, ApplicationStatus, Contract, DocumentReview, Job, Shift, Worker } from '../types.js'
@@ -90,6 +90,7 @@ function joined(match: Record<string, unknown>): PipelineStage[] {
         amount: { $ifNull: ['$job.amount', 0] },
         paymentUnit: { $ifNull: ['$job.paymentUnit', 'shift'] },
         shiftDate: { $ifNull: ['$job.date', ''] },
+        shiftEndDate: { $ifNull: ['$job.endDate', '$job.date'] },
         startTime: { $ifNull: ['$job.startTime', ''] },
         endTime: { $ifNull: ['$job.endTime', ''] },
         location: { $ifNull: ['$job.location', ''] },
@@ -126,7 +127,15 @@ type ApplicationRow = Record<string, unknown> & {
 }
 
 function publicFiles(files: WorkerFile[]) {
-  return files.map(({ data: _data, ...file }) => file)
+  return files.map((file) => {
+    const { data, ...rest } = file
+    if (rest.url) return rest
+    if (data && data.length && data.length <= 4_500_000) {
+      const mime = mimeFromBytes(data, file.fileName, file.contentType || 'image/jpeg')
+      return { ...rest, url: `data:${mime};base64,${data.toString('base64')}` }
+    }
+    return rest
+  })
 }
 
 async function resolveApplicationFiles(row: ApplicationRow, deep = false) {
@@ -142,6 +151,8 @@ async function resolveApplicationFiles(row: ApplicationRow, deep = false) {
   ]) : []
   const source = (row.sourceDoc || raw || {}) as Record<string, unknown>
   const applicationFiles = collectWorkerFiles(
+    source,
+    raw,
     source.uploads,
     source.documents,
     source.files,
@@ -153,12 +164,9 @@ async function resolveApplicationFiles(row: ApplicationRow, deep = false) {
     row.applicationDocuments,
     row.applicationFiles,
     row.applicationAttachments,
-    raw?.uploads,
-    raw?.documents,
-    raw?.files,
-    raw?.attachments,
   )
   const otherFiles = collectWorkerFiles(
+    worker,
     worker?.documents,
     worker?.files,
     worker?.uploads,
@@ -168,11 +176,14 @@ async function resolveApplicationFiles(row: ApplicationRow, deep = false) {
     related,
   )
   const required = Array.isArray(row.requiredDocuments) ? row.requiredDocuments as { id?: string; name?: string }[] : []
-  return {
-    files: attachFilesToRequirements(applicationFiles, otherFiles, required),
-    required,
+  const files = attachLooseBytes(
+    attachFilesToRequirements(applicationFiles, otherFiles, required),
+    source,
     raw,
-  }
+    worker,
+    related,
+  )
+  return { files, required, raw, worker }
 }
 
 async function hydrateApplication(row: ApplicationRow | null, deep = false) {
@@ -200,34 +211,45 @@ function sameLabel(left: string, right: string) {
   return left.trim().toLowerCase() === right.trim().toLowerCase()
 }
 
-export async function getApplicationFile(hospitalId: string, applicationId: string, fileId: string, label?: string) {
+export async function getApplicationFile(hospitalId: string, applicationId: string, fileId: string, label?: string, fileName?: string) {
   const [row] = await Applications.aggregate<ApplicationRow>(joined({ hospitalId, id: applicationId }))
   if (!row) throw httpError(404, 'Application not found')
-  const { files } = await resolveApplicationFiles(row, true)
+  const { files, raw, worker } = await resolveApplicationFiles(row, true)
   const needle = decodeURIComponent(fileId || '').trim()
   const wanted = (label || '').trim()
+  const named = (fileName || '').trim()
   const file = files.find((item) => item.id === needle || item.documentId === needle || item.fileName === needle)
+    || files.find((item) => named && item.fileName === named)
     || files.find((item) => wanted && sameLabel(item.name, wanted))
     || files.find((item) => sameLabel(item.name, needle))
-  if (!file) throw httpError(404, 'Document not found')
-  if (file.data?.length) {
+    || files[0]
+  const fileNameHint = named || file?.fileName || needle
+  function payload(data: Buffer, name?: string, contentType?: string) {
     return {
-      data: file.data,
-      contentType: file.contentType || mimeFromName(file.fileName),
-      fileName: file.fileName || `${file.name}.jpg`,
+      data,
+      contentType: mimeFromBytes(data, name, contentType || 'image/jpeg'),
+      fileName: name || `${file?.name || 'document'}.jpg`,
     }
   }
-  if (file.url && /^https?:\/\//i.test(file.url)) {
+  if (file?.data?.length) return payload(file.data, file.fileName, file.contentType)
+  if (file?.url && /^(https?:|data:)/i.test(file.url)) {
+    if (file.url.startsWith('data:') && file.url.includes('base64,')) {
+      return payload(Buffer.from(file.url.slice(file.url.indexOf('base64,') + 7), 'base64'), file.fileName || fileNameHint, file.contentType)
+    }
     const response = await fetch(file.url)
-    if (!response.ok) throw httpError(404, 'Document file is missing')
-    return {
-      data: Buffer.from(await response.arrayBuffer()),
-      contentType: response.headers.get('content-type') || file.contentType || mimeFromName(file.fileName),
-      fileName: file.fileName || file.name,
+    if (response.ok) {
+      return payload(Buffer.from(await response.arrayBuffer()), file.fileName || fileNameHint, response.headers.get('content-type') || file.contentType)
     }
   }
-  const grid = await findGridFile(file.fileName || '')
-  if (grid) return grid
+  const grid = await findGridFile(fileNameHint, [needle, file?.id || '', file?.documentId || '', String((raw as { _id?: unknown } | null)?._id || '')])
+  if (grid) return payload(grid.data, grid.fileName || fileNameHint, grid.contentType)
+  const loose = attachLooseBytes(
+    [{ id: needle, name: wanted || 'Document', fileName: fileNameHint, data: undefined }],
+    raw,
+    worker,
+    row.sourceDoc,
+  )[0]
+  if (loose?.data?.length) return payload(loose.data, fileNameHint)
   throw httpError(404, 'Document file is missing')
 }
 
@@ -317,11 +339,36 @@ export async function offerApplication(hospitalId: string, id: string) {
   return next
 }
 
+function requiredDocNames(job?: Job | null) {
+  const seen = new Set<string>()
+  const names: string[] = []
+  for (const item of job?.requiredDocuments || []) {
+    const name = (item?.name || '').trim()
+    const key = name.toLowerCase()
+    if (!name || seen.has(key)) continue
+    seen.add(key)
+    names.push(name)
+  }
+  return names
+}
+
+function reviewStatus(reviews: DocumentReview[] | undefined, label: string) {
+  return (reviews || []).find((item) => item.label.trim().toLowerCase() === label.trim().toLowerCase())?.status
+}
+
 export async function confirmApplication(hospitalId: string, id: string) {
   const current = await Applications.findOne({ hospitalId, id }).lean<Application>()
   if (!current) return null
   if (current.status === 'confirmed') return getApplication(hospitalId, id)
   if (current.status === 'rejected') throw httpError(409, 'This application was declined')
+  const job = await Jobs.findOne({ hospitalId, id: current.jobId }).lean<Job>()
+  const required = requiredDocNames(job)
+  if (required.length) {
+    const rejected = required.filter((name) => reviewStatus(current.documentReviews, name) === 'rejected')
+    if (rejected.length) throw httpError(409, 'A document was rejected. Recheck and verify the documents before confirming this hire.')
+    const unverified = required.filter((name) => reviewStatus(current.documentReviews, name) !== 'verified')
+    if (unverified.length) throw httpError(409, 'Verify the docs before confirming this hire.')
+  }
   await placeWorker(hospitalId, current)
   const next = await setStatus(hospitalId, id, 'confirmed', ACTION.confirmed)
   changed(hospitalId, 'contracts', 'shifts')
@@ -429,14 +476,15 @@ async function placeWorker(hospitalId: string, application: Application) {
   if (!job) return
   const hours = shiftHours(job.startTime, job.endTime) || 8
   const startDate = job.date
-  const endDate = addDays(job.date, 6)
+  const endDate = job.endDate && job.endDate >= job.date ? job.endDate : addDays(job.date, 6)
+  const days = daysInclusive(startDate, endDate)
   const now = nowIso()
   const contract: Contract = {
     id: uid(),
     hospitalId,
     workerId: application.workerId,
     jobId: job.id,
-    title: `${job.role} — 7 day contract`,
+    title: `${job.role} — ${days} day contract`,
     role: job.role,
     department: job.department,
     location: job.location,
@@ -450,7 +498,7 @@ async function placeWorker(hospitalId: string, application: Application) {
     createdAt: now,
   }
   await Contracts.create(contract)
-  const shifts: Shift[] = Array.from({ length: 7 }, (_, index) => {
+  const shifts: Shift[] = Array.from({ length: days }, (_, index) => {
     const date = addDays(startDate, index)
     const shift: Shift = {
       id: uid(),

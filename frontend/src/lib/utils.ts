@@ -87,6 +87,13 @@ export function dateShort(value?: string | null) {
   return formatDate(value, { day: 'numeric', month: 'short' })
 }
 
+export function dayRange(start?: string | null, end?: string | null) {
+  const from = dayLabel(start)
+  if (!end || end === start) return from
+  const to = dayLabel(end)
+  return to === '—' || to === from ? from : `${from} – ${to}`
+}
+
 export function today(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')

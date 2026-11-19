@@ -34,6 +34,7 @@ const jobSchema = z.object({
   })).optional().default([]),
   workersNeeded: z.number().int().min(1).max(50),
   date: z.string().min(8, 'Choose a date'),
+  endDate: z.string().min(8, 'Choose an end date').optional(),
   startTime: z.string().min(4, 'Add a start time'),
   endTime: z.string().min(4, 'Add an end time'),
   shiftType: z.enum(['day', 'night', 'rotating']),
@@ -53,6 +54,9 @@ const jobSchema = z.object({
   notes: z.string().optional().default(''),
   urgent: z.boolean().default(false),
   status: z.enum(['draft', 'pending_review', 'approved']).optional(),
+}).refine((value) => !value.endDate || value.endDate >= value.date, {
+  message: 'End date cannot be before the start date.',
+  path: ['endDate'],
 })
 
 const pageQuery = {
@@ -149,8 +153,17 @@ hospitalRouter.get('/applications/:applicationId', asyncHandler(async (req, res)
 }))
 
 hospitalRouter.get('/applications/:applicationId/files/:fileId', asyncHandler(async (req, res) => {
-  const file = await getApplicationFile(hospitalId(req), req.params.applicationId, req.params.fileId, typeof req.query.label === 'string' ? req.query.label : undefined)
-  res.setHeader('Content-Type', file.contentType || 'application/octet-stream')
+  const file = await getApplicationFile(
+    hospitalId(req),
+    req.params.applicationId,
+    req.params.fileId,
+    typeof req.query.label === 'string' ? req.query.label : undefined,
+    typeof req.query.fileName === 'string' ? req.query.fileName : undefined,
+  )
+  const contentType = file.contentType && file.contentType !== 'application/octet-stream'
+    ? file.contentType
+    : 'image/jpeg'
+  res.setHeader('Content-Type', contentType)
   res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.fileName)}"`)
   res.setHeader('Cache-Control', 'private, max-age=120')
   res.send(file.data)

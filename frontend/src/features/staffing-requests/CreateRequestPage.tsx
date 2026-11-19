@@ -155,24 +155,25 @@ export default function CreateRequestPage() {
                 <div className="grid gap-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Start date" error={errors.date?.message}><DateInput min={new Date().toISOString().slice(0, 10)} {...form.register('date')} /></Field>
-                    <Field label="Where" error={errors.location?.message}>
-                      <Controller
-                        control={form.control}
-                        name="location"
-                        render={({ field }) => (
-                          <ChoiceSelect
-                            name={field.name}
-                            value={field.value}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            options={sosPlaces(hospital)}
-                            otherLabel="Other location"
-                            otherPlaceholder="Ward, floor or campus"
-                          />
-                        )}
-                      />
-                    </Field>
+                    <Field label="End date" error={errors.endDate?.message}><DateInput min={values.date || new Date().toISOString().slice(0, 10)} {...form.register('endDate')} /></Field>
                   </div>
+                  <Field label="Where" error={errors.location?.message}>
+                    <Controller
+                      control={form.control}
+                      name="location"
+                      render={({ field }) => (
+                        <ChoiceSelect
+                          name={field.name}
+                          value={field.value}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          options={sosPlaces(hospital)}
+                          otherLabel="Other location"
+                          otherPlaceholder="Ward, floor or campus"
+                        />
+                      )}
+                    />
+                  </Field>
                   <div>
                     <p className="text-[13px] font-semibold text-ink">Hours each day</p>
                     <p className="mt-0.5 text-xs text-muted">Same start and end time every day of this request.</p>
@@ -215,10 +216,19 @@ export default function CreateRequestPage() {
   )
 }
 
+function daysInRequest(start?: string, end?: string) {
+  if (!start || !end || end < start) return 1
+  const from = new Date(`${start}T00:00:00`)
+  const to = new Date(`${end}T00:00:00`)
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return 1
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1
+}
+
 function PayRulesStep({ form, values, errors }: { form: UseFormReturn<RequestValues>; values: RequestValues; errors: UseFormReturn<RequestValues>['formState']['errors'] }) {
   const present = Number(values.amount) || 0
   const latePay = Math.max(0, present - (Number(values.lateDeduction) || 0))
   const halfPay = Number(values.halfDayPay) || 0
+  const days = daysInRequest(values.date, values.endDate)
 
   const amountField = form.register('amount')
 
@@ -292,8 +302,8 @@ function PayRulesStep({ form, values, errors }: { form: UseFormReturn<RequestVal
         <PayLine label="Absent" value={values.absentAllowed ? money(0) : 'Not allowed'} />
         {present > 0 && (
           <div className="flex justify-between gap-3 bg-mint/40 px-3.5 py-2.5 font-semibold text-ink">
-            <span>If all 7 days present</span>
-            <span>{money(present * 7)}</span>
+            <span>If all {days} day{days === 1 ? '' : 's'} present</span>
+            <span>{money(present * days)}</span>
           </div>
         )}
       </div>
@@ -408,6 +418,7 @@ function toPayload(values: RequestValues, status: 'draft' | 'approved') {
     })),
     workersNeeded: Number(values.workersNeeded),
     date: values.date,
+    endDate: values.endDate,
     startTime: values.startTime,
     endTime: values.endTime,
     shiftType: Number((values.startTime || '07:00').slice(0, 2)) >= 19 || Number((values.startTime || '07:00').slice(0, 2)) < 6 ? 'night' as const : 'day' as const,

@@ -24,6 +24,13 @@ export function ymd(date = new Date()) {
   return `${y}-${m}-${d}`
 }
 
+export function daysInclusive(start: string, end: string) {
+  const from = new Date(`${start}T00:00:00`)
+  const to = new Date(`${end}T00:00:00`)
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return 1
+  return Math.min(90, Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1)
+}
+
 export function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

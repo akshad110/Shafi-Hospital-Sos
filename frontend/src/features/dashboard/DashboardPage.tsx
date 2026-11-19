@@ -4,7 +4,7 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { ArrowRight, CalendarDays, Clock3, MapPin, Phone, Plus, ShieldCheck, Siren } from 'lucide-react'
 import { applications, contracts, jobs, notifications, shifts, subscription } from '../../services/api'
 import { useSession } from '../../app/session'
-import { cn, dayLabel, daysLeft, greeting, initials, money, PLAN_LABEL, startsIn, unitLabel, when } from '../../lib/utils'
+import { cn, dayLabel, dayRange, daysLeft, greeting, initials, money, PLAN_LABEL, startsIn, unitLabel, when } from '../../lib/utils'
 import { Badge } from '../../components/ui/Badge'
 import { buttonClass } from '../../components/ui/Button'
 import { Card, CardHeader, rowClass } from '../../components/ui/Card'
@@ -168,7 +168,7 @@ export default function DashboardPage() {
                         </div>
                         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                           <span>{job.department}</span>
-                          <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{dayLabel(job.date)} · {job.startTime}–{job.endTime}</span>
+                          <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{dayRange(job.date, job.endDate)} · {job.startTime}–{job.endTime}</span>
                           <span>{appItems.filter((item) => item.jobId === job.id).length} applications</span>
                         </p>
                       </div>

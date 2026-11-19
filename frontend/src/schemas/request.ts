@@ -42,6 +42,7 @@ export const requestSchema = z.object({
   })),
   workersNeeded: z.coerce.number().int().min(1, 'At least one worker').max(50),
   date: z.string().min(1, 'Choose a start date'),
+  endDate: z.string().min(1, 'Choose an end date'),
   startTime: z.string().min(1, 'Choose when the shift starts'),
   endTime: z.string().min(1, 'Choose when the shift ends'),
   shiftType: z.enum(['day', 'night', 'rotating']),
@@ -62,12 +63,19 @@ export const requestSchema = z.object({
       message: 'Start and end cannot be the same time.',
     })
   }
+  if (value.date && value.endDate && value.endDate < value.date) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['endDate'],
+      message: 'End date cannot be before the start date.',
+    })
+  }
 })
 
 export type RequestValues = z.infer<typeof requestSchema>
 
 export const steps = [
   { title: 'Role details', fields: ['title', 'department', 'role', 'description', 'workersNeeded'] as const },
-  { title: 'Shift details', fields: ['date', 'startTime', 'endTime', 'location'] as const },
+  { title: 'Shift details', fields: ['date', 'endDate', 'startTime', 'endTime', 'location'] as const },
   { title: 'Daily pay', fields: ['amount', 'paymentUnit', 'lateAllowed', 'lateDeduction', 'halfDayAllowed', 'halfDayPay', 'absentAllowed'] as const },
 ]

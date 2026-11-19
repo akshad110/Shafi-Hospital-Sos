@@ -151,7 +151,7 @@ export const Workers = define<Worker>('workers', {
   city: String,
   credentialExpiry: String,
   availability: String,
-  documents: [sub({ id: String, name: String, kind: String, url: String, fileName: String })],
+  documents: { type: [Schema.Types.Mixed], default: [] },
   payoutAccount: {
     method: { type: String, enum: ['upi', 'bank_transfer'] },
     upiId: String,
@@ -208,6 +208,7 @@ export const Jobs = define<Job>('jobs', {
   requiredDocuments: [sub({ id: String, name: String, instruction: String })],
   workersNeeded: Number,
   date: String,
+  endDate: { type: String, default: '' },
   startTime: String,
   endTime: String,
   shiftType: { type: String, enum: ['day', 'night', 'rotating'] },
@@ -243,15 +244,7 @@ export const Applications = define<Application>('applications', {
     reason: String,
     at: String,
   })],
-  uploads: [sub({
-    id: String,
-    documentId: String,
-    name: String,
-    url: String,
-    fileName: String,
-    contentType: String,
-    at: String,
-  })],
+  uploads: { type: [Schema.Types.Mixed], default: [] },
 }, [{ hospitalId: 1, appliedAt: -1 }], false)
 
 export const Contracts = define<Contract>('contracts', {

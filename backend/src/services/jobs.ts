@@ -66,6 +66,7 @@ export async function createJob(hospitalId: string, input: JobInput) {
       name: item.name.trim(),
       instruction: item.instruction?.trim() || 'Upload an original photo or PDF of this document.',
     })),
+    endDate: input.endDate && input.endDate >= input.date ? input.endDate : input.date,
     payRules: resolvePayRules(input.payRules, presentDayPay(input.amount, input.paymentUnit)),
     status,
     id: uid(),

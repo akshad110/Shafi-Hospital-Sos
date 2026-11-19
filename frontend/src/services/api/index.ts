@@ -1,4 +1,4 @@
-import { client, writeAccessToken } from './client'
+import { client, readAccessToken, writeAccessToken } from './client'
 import type { KycRequirements } from '../../lib/hospitalKyc'
 import type {
   Application,
@@ -111,20 +111,25 @@ export async function applications(params: Record<string, string | number | unde
 }
 
 export async function application(id: string) {
-  const { data } = await client.get<{ application: Application }>(`/applications/${id}`)
+  const { data } = await client.get<{ application: Application }>(`/applications/${id}`, { timeout: 60_000 })
   return data.application
 }
 
-export async function applicationFile(id: string, fileId: string, label?: string) {
-  const { data } = await client.get<Blob>(`/applications/${id}/files/${encodeURIComponent(fileId)}`, {
-    params: label ? { label } : undefined,
-    responseType: 'blob',
-    timeout: 60_000,
+export async function applicationFile(id: string, fileId: string, label?: string, fileName?: string) {
+  const base = String(client.defaults.baseURL || '/api/v1').replace(/\/$/, '')
+  const params = new URLSearchParams()
+  if (label) params.set('label', label)
+  if (fileName) params.set('fileName', fileName)
+  const response = await fetch(`${base}/applications/${id}/files/${encodeURIComponent(fileId || fileName || 'file')}?${params}`, {
+    headers: { Authorization: `Bearer ${readAccessToken()}` },
+    credentials: 'include',
   })
-  if (data.type.includes('application/json')) {
+  if (!response.ok) throw new Error('Document file is missing')
+  const blob = await response.blob()
+  if (!blob || blob.size < 40 || /application\/json|text\/html/.test(blob.type)) {
     throw new Error('Document file is missing')
   }
-  return data
+  return blob
 }
 
 export async function shortlistApplication(id: string) {
