@@ -1,9 +1,9 @@
 import { io, type Socket } from 'socket.io-client'
-import { readAccessToken } from '../api/client'
+import { apiBase, readAccessToken } from '../api/client'
 
 function socketOrigin() {
-  const base = import.meta.env.VITE_API_BASE_URL as string | undefined
-  return base && /^https?:\/\//.test(base) ? new URL(base).origin : window.location.origin
+  const base = apiBase()
+  return /^https?:\/\//.test(base) ? new URL(base).origin : window.location.origin
 }
 
 let socket: Socket | null = null

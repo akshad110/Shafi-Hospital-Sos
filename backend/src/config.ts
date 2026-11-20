@@ -5,10 +5,11 @@ dotenv.config()
 const production = process.env.NODE_ENV === 'production'
 
 function origins() {
-  return (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
-    .split(',')
-    .map((item) => item.trim().replace(/\/$/, ''))
-    .filter(Boolean)
+  return [...new Set([
+    ...(process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(','),
+    'https://shafi-hospital-sos-zk7t.onrender.com',
+    'http://localhost:5173',
+  ].map((item) => item.trim().replace(/\/$/, '')).filter(Boolean))]
 }
 
 const clientOrigins = origins()

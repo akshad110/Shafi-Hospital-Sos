@@ -71,7 +71,7 @@ export async function changePassword(current: string, next: string) {
 }
 
 export async function session() {
-  const { data } = await client.get<{ user: SessionUser; hospital: Hospital }>('/users/me')
+  const { data } = await client.get<{ user: SessionUser; hospital: Hospital }>('/users/me', { timeout: 60_000 })
   return data
 }
 

@@ -10,7 +10,9 @@ export function restoreQueryCache(client: QueryClient) {
     const raw = localStorage.getItem(CACHE_KEY)
     if (!raw) return
     hydrate(client, JSON.parse(raw))
-    void client.invalidateQueries()
+    void client.invalidateQueries({
+      predicate: (query) => query.queryKey[0] !== 'session' && query.queryKey[0] !== 'catalog',
+    })
   } catch {
     try {
       localStorage.removeItem(CACHE_KEY)

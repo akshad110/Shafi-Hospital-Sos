@@ -29,6 +29,7 @@ export function writeAccessToken(token?: string) {
     } else {
       memory?.removeItem(TOKEN_KEY)
       sessionStorage.removeItem(TOKEN_KEY)
+      markSignedIn(false)
     }
   } catch {
     /* private browsing */
@@ -52,10 +53,17 @@ export function wasSignedIn() {
   }
 }
 
+export function apiBase() {
+  const env = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
+  if (env) return env
+  if (import.meta.env.PROD) return 'https://shafi-hospital-sos-baclend-api.onrender.com/api/v1'
+  return '/api/v1'
+}
+
 export const client = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: apiBase(),
   withCredentials: true,
-  timeout: 20_000,
+  timeout: 45_000,
 })
 
 client.interceptors.request.use((config) => {
@@ -68,7 +76,7 @@ let refreshing: Promise<void> | null = null
 
 export function refreshSession() {
   refreshing ||= client
-    .post<{ accessToken?: string }>('/auth/refresh')
+    .post<{ accessToken?: string }>('/auth/refresh', undefined, { timeout: 60_000 })
     .then((response) => {
       writeAccessToken(response.data.accessToken)
     })
